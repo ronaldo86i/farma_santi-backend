@@ -1,0 +1,9 @@
+*.out
+
+# Ignorar directorios y archivos comunes
+.git
+.gitignore
+*.log
+*.DS_Store
+.idea/
+.vscode/
