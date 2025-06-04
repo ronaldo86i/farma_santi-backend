@@ -36,11 +36,17 @@ func (token) CreateToken(data jwt.MapClaims) (string, error) {
 // VerifyToken verifica si un token JWT es válido y retorna los claims.
 func (token) VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	var message = "Token no válido"
+	if tokenString == "" {
+		return nil, &datatype.ErrorResponse{
+			Code:    http.StatusUnauthorized,
+			Message: message,
+		}
+	}
 	// Parsear el token y validar la firma con la clave secreta.
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Verificar que la firma sea HS256.
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			message = "Método de firma inválido"
+			message = "Método de firma no válido"
 			return nil, &datatype.ErrorResponse{
 				Code:    http.StatusUnauthorized,
 				Message: message,

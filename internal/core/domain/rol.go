@@ -5,21 +5,26 @@ import (
 )
 
 type Rol struct {
-	Id        uint8      `json:"id"`
+	Id        int32      `json:"id"`
 	Nombre    string     `json:"nombre"`
+	Estado    string     `json:"estado"`
 	CreatedAt time.Time  `json:"createdAt"`
 	DeletedAt *time.Time `json:"deletedAt"`
 }
 
 type RolRequest struct {
-	Nombre string `json:"nombre"`
+	// Nombre del rol
+	Nombre string
 }
 
-type RolRequestUpdate struct {
+type RolInfo struct {
+	Id        int32      `json:"id"`
 	Nombre    string     `json:"nombre"`
+	Estado    string     `json:"estado"`
+	CreatedAt time.Time  `json:"createdAt"`
 	DeletedAt *time.Time `json:"deletedAt"`
 }
-type RolInfo struct {
-	Id     uint8  `json:"id"`
-	Nombre string `json:"nombre"`
+
+type RolDetail struct {
+	Rol
 }

@@ -1,8 +1,8 @@
 package domain
 
 type Persona struct {
-	Id              uint    `json:"id"`
-	Ci              int     `json:"ci"`
+	Id              int32   `json:"id"`
+	Ci              int32   `json:"ci"`
 	Complemento     *string `json:"complemento"`
 	Nombres         string  `json:"nombres"`
 	ApellidoPaterno string  `json:"apellidoPaterno"`
@@ -11,7 +11,7 @@ type Persona struct {
 }
 
 type PersonaRequest struct {
-	Ci              int     `json:"ci"`
+	Ci              int32   `json:"ci"`
 	Complemento     *string `json:"complemento"`
 	Nombres         string  `json:"nombres"`
 	ApellidoPaterno string  `json:"apellidoPaterno"`

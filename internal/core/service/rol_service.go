@@ -4,26 +4,29 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
-	"time"
+	"strings"
 )
 
 type RolService struct {
 	rolRepository port.RolRepository
 }
 
-func (r RolService) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequestUpdate) error {
-	if rolRequestUpdate.DeletedAt != nil {
-		*rolRequestUpdate.DeletedAt = time.Now()
-	}
+func (r RolService) HabilitarRol(ctx context.Context, id *int) error {
+	return r.rolRepository.HabilitarRol(ctx, id)
+}
+
+func (r RolService) DeshabilitarRol(ctx context.Context, id *int) error {
+	return r.rolRepository.DeshabilitarRol(ctx, id)
+}
+
+func (r RolService) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequest) error {
+	rolRequestUpdate.Nombre = strings.ToUpper(rolRequestUpdate.Nombre)
 	return r.rolRepository.ModificarRol(ctx, id, rolRequestUpdate)
 }
 
 func (r RolService) RegistrarRol(ctx context.Context, rolRequest *domain.RolRequest) error {
+	rolRequest.Nombre = strings.ToUpper(rolRequest.Nombre)
 	return r.rolRepository.RegistrarRol(ctx, rolRequest)
-}
-
-func (r RolService) ModificarEstadoRol(ctx context.Context, id *int) error {
-	return r.rolRepository.ModificarEstadoRol(ctx, id)
 }
 
 func (r RolService) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {

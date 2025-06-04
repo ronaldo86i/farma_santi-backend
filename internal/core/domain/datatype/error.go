@@ -1,7 +1,7 @@
 package datatype
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"net/http"
 )
 
 type ErrorResponse struct {
@@ -17,7 +17,7 @@ func (e ErrorResponse) Error() string {
 // NewInternalServerError crea un objeto de error común para el servidor
 func NewInternalServerError() *ErrorResponse {
 	return &ErrorResponse{
-		Code:    fiber.StatusInternalServerError,
+		Code:    http.StatusInternalServerError,
 		Message: "Ha ocurrido un error interno en el servidor. Por favor, inténtelo más tarde.",
 	}
 }
@@ -25,7 +25,7 @@ func NewInternalServerError() *ErrorResponse {
 // NewStatusServiceUnavailableError crea un objeto de error de servicio no disponible para el servidor
 func NewStatusServiceUnavailableError() *ErrorResponse {
 	return &ErrorResponse{
-		Code:    fiber.StatusServiceUnavailable,
+		Code:    http.StatusServiceUnavailable,
 		Message: "Servicio no disponible, inténtelo más tarde.",
 	}
 }

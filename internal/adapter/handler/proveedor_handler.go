@@ -15,6 +15,42 @@ type ProveedorHandler struct {
 	proveedorService port.ProveedorService
 }
 
+func (p ProveedorHandler) HabilitarProveedor(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	proveedorId, err := c.ParamsInt("proveedorId", 0)
+	if err != nil || proveedorId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del proveedor debe ser un número válido mayor a 0"))
+	}
+	err = p.proveedorService.HabilitarProveedor(ctx, &proveedorId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return datatype.NewInternalServerError()
+	}
+	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))
+}
+
+func (p ProveedorHandler) DeshabilitarProveedor(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	proveedorId, err := c.ParamsInt("proveedorId", 0)
+	if err != nil || proveedorId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del proveedor debe ser un número válido mayor a 0"))
+	}
+	err = p.proveedorService.DeshabilitarProveedor(ctx, &proveedorId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return datatype.NewInternalServerError()
+	}
+	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))
+}
+
 func (p ProveedorHandler) RegistrarProveedor(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	var proveedor domain.ProveedorRequest
@@ -89,24 +125,6 @@ func (p ProveedorHandler) ModificarProveedor(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))
-}
-
-func (p ProveedorHandler) ModificarEstadoProveedor(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-	proveedorId, err := c.ParamsInt("proveedorId", 0)
-	if err != nil || proveedorId <= 0 {
-		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del proveedor debe ser un número válido mayor a 0"))
-	}
-	err = p.proveedorService.ModificarEstadoProveedor(ctx, &proveedorId)
-	if err != nil {
-		log.Print(err.Error())
-		var errorResponse *datatype.ErrorResponse
-		if errors.As(err, &errorResponse) {
-			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
-		}
-		return datatype.NewInternalServerError()
-	}
-	return c.Status(http.StatusOK).JSON(util.NewMessage("Estado de proveedor actualizado"))
 }
 
 func NewProveedorHandler(proveedorService port.ProveedorService) *ProveedorHandler {

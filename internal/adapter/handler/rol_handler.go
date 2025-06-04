@@ -15,11 +15,49 @@ type RolHandler struct {
 	rolService port.RolService
 }
 
+func (r RolHandler) HabilitarRol(c *fiber.Ctx) error {
+	ctx := c.UserContext() // Usa el contexto de la petición
+	rolId, err := c.ParamsInt("rolId")
+	if err != nil || rolId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del rol debe ser un número válido mayor a 0"))
+	}
+
+	err = r.rolService.HabilitarRol(ctx, &rolId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(util.NewMessage("Rol actualizado correctamente"))
+}
+
+func (r RolHandler) DeshabilitarRol(c *fiber.Ctx) error {
+	ctx := c.UserContext() // Usa el contexto de la petición
+	rolId, err := c.ParamsInt("rolId")
+	if err != nil || rolId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del rol debe ser un número válido mayor a 0"))
+	}
+
+	err = r.rolService.DeshabilitarRol(ctx, &rolId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(util.NewMessage("Rol actualizado correctamente"))
+}
+
 func (r RolHandler) ModificarRol(c *fiber.Ctx) error {
 
 	ctx := c.UserContext() // Usar el contexto
 
-	var rolRequestUpdate domain.RolRequestUpdate
+	var rolRequestUpdate domain.RolRequest
 	if err := c.BodyParser(&rolRequestUpdate); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
@@ -60,25 +98,6 @@ func (r RolHandler) RegistrarRol(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusCreated).JSON(util.NewMessage("Rol registrado correctamente"))
-}
-
-func (r RolHandler) ModificarEstadoRol(c *fiber.Ctx) error {
-	ctx := c.UserContext() // Usa el contexto de la petición
-	rolId, err := c.ParamsInt("rolId")
-	if err != nil || rolId <= 0 {
-		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del rol debe ser un número válido mayor a 0"))
-	}
-
-	err = r.rolService.ModificarEstadoRol(ctx, &rolId)
-	if err != nil {
-		log.Print(err.Error())
-		var errorResponse *datatype.ErrorResponse
-		if errors.As(err, &errorResponse) {
-			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
-		}
-		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
-	}
-	return c.JSON(util.NewMessage("Estado de rol actualizado correctamente"))
 }
 
 func (r RolHandler) ListarRoles(c *fiber.Ctx) error {

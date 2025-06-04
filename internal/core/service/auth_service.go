@@ -17,7 +17,7 @@ type AuthService struct {
 	usuarioRepository port.UsuarioRepository
 }
 
-func (a AuthService) ObtenerToken(ctx context.Context, credentials *domain.LoginRequest) (*domain.TokenResponse, error) {
+func (a AuthService) ObtenerTokenByCredencial(ctx context.Context, credentials *domain.LoginRequest) (*domain.TokenResponse, error) {
 	usuario, err := a.usuarioRepository.ObtenerUsuario(ctx, &credentials.Username)
 	if err != nil {
 		return nil, err
@@ -29,30 +29,34 @@ func (a AuthService) ObtenerToken(ctx context.Context, credentials *domain.Login
 			Message: "Usuario o contraseña incorrecta",
 		}
 	}
-	expAccess, expRefresh := time.Now().UTC().Add(15*time.Minute).Unix(), time.Now().UTC().Add(7*24*time.Hour).Unix()
+	expAccess, expRefresh := time.Now().UTC().Add(1*time.Hour), time.Now().UTC().Add(7*24*time.Hour)
 	// Generar token
-	tokenAccess, err := util.Token.CreateToken(jwt.MapClaims{
+	accessToken, err := util.Token.CreateToken(jwt.MapClaims{
 		"username":   &credentials.Username,
-		"expiration": expAccess,
-		"type":       "access",
+		"expiration": expAccess.Unix(),
+		"type":       "access-token-adm",
 	})
+
 	// Generar token
-	tokenRefresh, err := util.Token.CreateToken(jwt.MapClaims{
+	refreshToken, err := util.Token.CreateToken(jwt.MapClaims{
 		"username":   &credentials.Username,
-		"expiration": expRefresh,
-		"type":       "refresh",
+		"expiration": expRefresh.Unix(),
+		"type":       "refresh-token-adm",
 	})
+
 	if err != nil {
 		return nil, &datatype.ErrorResponse{
 			Code:    http.StatusUnauthorized,
-			Message: "Usuario o contraseña incorrecto",
+			Message: "Usuario o contraseña incorrecta",
 		}
 	}
 
 	return &domain.TokenResponse{
-		Message:      "Usuario autenticado",
-		TokenAccess:  tokenAccess,
-		TokenRefresh: tokenRefresh,
+		Message:         "Usuario autenticado",
+		AccessToken:     accessToken,
+		RefreshToken:    refreshToken,
+		ExpAccessToken:  expAccess,
+		ExpRefreshToken: expRefresh,
 	}, nil
 }
 

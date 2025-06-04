@@ -11,7 +11,8 @@ type ProveedorRepository interface {
 	ObtenerProveedorById(ctx context.Context, id *int) (*domain.ProveedorDetail, error)
 	ListarProveedores(ctx context.Context) (*[]domain.ProveedorInfo, error)
 	ModificarProveedor(ctx context.Context, id *int, request *domain.ProveedorRequest) error
-	ModificarEstadoProveedor(ctx context.Context, id *int) error
+	HabilitarProveedor(ctx context.Context, id *int) error
+	DeshabilitarProveedor(ctx context.Context, id *int) error
 }
 
 type ProveedorService interface {
@@ -19,7 +20,8 @@ type ProveedorService interface {
 	ObtenerProveedorById(ctx context.Context, id *int) (*domain.ProveedorDetail, error)
 	ListarProveedores(ctx context.Context) (*[]domain.ProveedorInfo, error)
 	ModificarProveedor(ctx context.Context, id *int, request *domain.ProveedorRequest) error
-	ModificarEstadoProveedor(ctx context.Context, id *int) error
+	HabilitarProveedor(ctx context.Context, id *int) error
+	DeshabilitarProveedor(ctx context.Context, id *int) error
 }
 
 type ProveedorHandler interface {
@@ -27,5 +29,6 @@ type ProveedorHandler interface {
 	ObtenerProveedorById(c *fiber.Ctx) error
 	ListarProveedores(c *fiber.Ctx) error
 	ModificarProveedor(c *fiber.Ctx) error
-	ModificarEstadoProveedor(c *fiber.Ctx) error
+	HabilitarProveedor(c *fiber.Ctx) error
+	DeshabilitarProveedor(c *fiber.Ctx) error
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/port"
+	"farma-santi_backend/internal/core/util"
 	"fmt"
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
@@ -15,11 +16,13 @@ import (
 )
 
 type Server struct {
-	authHandler      port.AuthHandler
-	rolHandler       port.RolHandler
-	usuarioHandler   port.UsuarioHandler
-	categoriaHandler port.CategoriaHandler
-	proveedorHandler port.ProveedorHandler
+	authHandler        port.AuthHandler
+	rolHandler         port.RolHandler
+	usuarioHandler     port.UsuarioHandler
+	categoriaHandler   port.CategoriaHandler
+	proveedorHandler   port.ProveedorHandler
+	laboratorioHandler port.LaboratorioHandler
+	productoHandler    port.ProductoHandler
 }
 
 func NewServer(
@@ -28,13 +31,17 @@ func NewServer(
 	usuarioHandler port.UsuarioHandler,
 	categoriaHandler port.CategoriaHandler,
 	proveedorHandler port.ProveedorHandler,
+	laboratorioHandler port.LaboratorioHandler,
+	productoHandler port.ProductoHandler,
 ) *Server {
 	return &Server{
-		authHandler:      authHandler,
-		rolHandler:       rolHandler,
-		usuarioHandler:   usuarioHandler,
-		categoriaHandler: categoriaHandler,
-		proveedorHandler: proveedorHandler,
+		authHandler:        authHandler,
+		rolHandler:         rolHandler,
+		usuarioHandler:     usuarioHandler,
+		categoriaHandler:   categoriaHandler,
+		proveedorHandler:   proveedorHandler,
+		laboratorioHandler: laboratorioHandler,
+		productoHandler:    productoHandler,
 	}
 }
 
@@ -68,11 +75,12 @@ func (s *Server) startServer() {
 		JSONDecoder:           json.Unmarshal,
 		Prefork:               false,
 		AppName:               "Farma Santi Backend",
+		ErrorHandler:          util.ErrorHandler, // Establece un manejador de errores personalizado
 	})
 
 	// Configuración de CORS
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173, http://127.0.0.1:5173, http://192.168.0.28:5173",
+		AllowOrigins: "http://localhost:5173,http://localhost:4173, http://127.0.0.1:5173",
 		AllowHeaders: strings.Join([]string{
 			fiber.HeaderOrigin,
 			fiber.HeaderContentType,

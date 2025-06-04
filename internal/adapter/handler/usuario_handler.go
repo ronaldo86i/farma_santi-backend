@@ -15,6 +15,76 @@ type UsuarioHandler struct {
 	usuarioService port.UsuarioService
 }
 
+func (u UsuarioHandler) RestablecerPassword(c *fiber.Ctx) error {
+	ctx := c.UserContext() // Usa el contexto de la petición
+	usuarioId, err := c.ParamsInt("usuarioId")
+	if err != nil || usuarioId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del usuario debe ser un número válido mayor a 0"))
+	}
+	usuario, err := u.usuarioService.RestablecerPassword(ctx, &usuarioId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(util.NewMessageData(&usuario, "Contraseña actualizada correctamente"))
+}
+
+func (u UsuarioHandler) HabilitarUsuarioById(c *fiber.Ctx) error {
+	ctx := c.UserContext() // Usa el contexto de la petición
+	usuarioId, err := c.ParamsInt("usuarioId")
+	if err != nil || usuarioId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del usuario debe ser un número válido mayor a 0"))
+	}
+
+	err = u.usuarioService.HabilitarUsuarioById(ctx, &usuarioId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(util.NewMessage("Usuario actualizado correctamente"))
+}
+
+func (u UsuarioHandler) DeshabilitarUsuarioById(c *fiber.Ctx) error {
+	ctx := c.UserContext() // Usa el contexto de la petición
+	usuarioId, err := c.ParamsInt("usuarioId")
+	if err != nil || usuarioId <= 0 {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del usuario debe ser un número válido mayor a 0"))
+	}
+
+	err = u.usuarioService.DeshabilitarUsuarioById(ctx, &usuarioId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(util.NewMessage("Usuario actualizado correctamente"))
+}
+
+func (u UsuarioHandler) ObtenerUsuarioActual(c *fiber.Ctx) error {
+	token := c.Cookies("access-token")
+	usuarioDetalle, err := u.usuarioService.ObtenerUsuarioDetalleByToken(c.Context(), &token)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
+	}
+	return c.JSON(&usuarioDetalle)
+}
+
 func (u UsuarioHandler) ListarUsuarios(c *fiber.Ctx) error {
 
 	listaUsuario, err := u.usuarioService.ListarUsuarios(c.Context())
@@ -26,26 +96,7 @@ func (u UsuarioHandler) ListarUsuarios(c *fiber.Ctx) error {
 		}
 		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
 	}
-	return c.JSON(listaUsuario)
-}
-
-func (u UsuarioHandler) ModificarEstadoUsuario(c *fiber.Ctx) error {
-	ctx := c.UserContext() // Usa el contexto de la petición
-	usuarioId, err := c.ParamsInt("usuarioId")
-	if err != nil || usuarioId <= 0 {
-		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del usuario debe ser un número válido mayor a 0"))
-	}
-
-	err = u.usuarioService.ModificarEstadoUsuario(ctx, &usuarioId)
-	if err != nil {
-		log.Print(err.Error())
-		var errorResponse *datatype.ErrorResponse
-		if errors.As(err, &errorResponse) {
-			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
-		}
-		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
-	}
-	return c.JSON(util.NewMessage("Estado del usuario actualizado correctamente"))
+	return c.JSON(&listaUsuario)
 }
 
 func (u UsuarioHandler) ModificarUsuario(c *fiber.Ctx) error {
@@ -100,7 +151,7 @@ func (u UsuarioHandler) RegistrarUsuario(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
 
-	_, err := u.usuarioService.RegistrarUsuario(ctx, &usuarioRequest)
+	usuarioDetalle, err := u.usuarioService.RegistrarUsuario(ctx, &usuarioRequest)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -110,7 +161,7 @@ func (u UsuarioHandler) RegistrarUsuario(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
 	}
 
-	return c.Status(http.StatusAccepted).JSON(util.NewMessage("Usuario creado correctamente"))
+	return c.Status(http.StatusCreated).JSON(util.NewMessageData(usuarioDetalle, "Usuario creado correctamente"))
 }
 
 func NewUsuarioHandler(usuarioService port.UsuarioService) UsuarioHandler {

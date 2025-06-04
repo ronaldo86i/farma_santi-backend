@@ -19,65 +19,45 @@ type AuthHandler struct {
 }
 
 func (a *AuthHandler) RefreshOrVerify(c *fiber.Ctx) error {
-	timeNow := time.Now().UTC()
 
-	refreshToken := c.Cookies("refresh-token")
-	if refreshToken == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("No se encontró el refresh token"))
-	}
-
-	claims, err := util.Token.VerifyToken(refreshToken)
+	claimsRefreshToken, err := util.Token.VerifyToken(c.Cookies("refresh-token"))
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Refresh token inválido o expirado"))
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
 
-	username, ok := claims["username"].(string)
+	username, ok := claimsRefreshToken["username"].(string)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Token inválido"))
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
 
-	// ACCESS TOKEN
-	accessExp := timeNow.Add(15 * time.Minute)
-	accessClaims := jwt.MapClaims{
-		"username":   username,
-		"expiration": accessExp.Unix(),
-		"type":       "access",
-	}
+	now := time.Now().UTC()
+	expAccess, expRefresh := now.Add(1*time.Hour), now.Add(7*24*time.Hour)
+	// Generar token
+	accessToken, err := util.Token.CreateToken(jwt.MapClaims{
+		"username":   &username,
+		"expiration": expAccess.Unix(),
+		"type":       "access-token-adm",
+	})
 
-	newAccessToken, err := util.Token.CreateToken(accessClaims)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(util.NewMessage("No se pudo generar access token"))
-	}
+	// Generar token
+	refreshToken, err := util.Token.CreateToken(jwt.MapClaims{
+		"username":   &username,
+		"expiration": expRefresh.Unix(),
+		"type":       "refresh-token-adm",
+	})
 
-	util.SetCookie(c, "access-token", newAccessToken, 15*time.Minute, true, false, timeNow)
-	util.SetCookie(c, "exp-access-token", fmt.Sprintf("%d", accessExp.Unix()), 15*time.Minute, false, false, timeNow)
+	util.SetCookie(c, "access-token", accessToken, expAccess.Sub(now), true, false, now)
+	util.SetCookie(c, "exp-access-token", fmt.Sprintf("%d", expAccess.Unix()), expAccess.Sub(now), false, false, now)
 
-	// REFRESH TOKEN: renovar si queda < 24h
-	expFloat, ok := claims["expiration"].(float64)
+	expFloat, ok := claimsRefreshToken["expiration"].(float64)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Token inválido"))
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
-	refreshExp := time.Unix(int64(expFloat), 0)
-
-	if time.Until(refreshExp) < 24*time.Hour {
-		newRefreshExp := timeNow.Add(7 * 24 * time.Hour)
-		newRefreshClaims := jwt.MapClaims{
-			"username":   username,
-			"expiration": newRefreshExp.Unix(),
-			"type":       "refresh",
-		}
-
-		newRefreshToken, err := util.Token.CreateToken(newRefreshClaims)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(util.NewMessage("No se pudo generar nuevo refresh token"))
-		}
-
-		util.SetCookie(c, "refresh-token", newRefreshToken, 7*24*time.Hour, true, false, timeNow)
-		util.SetCookie(c, "exp-refresh-token", fmt.Sprintf("%d", newRefreshExp.Unix()), 7*24*time.Hour, false, false, timeNow)
-	} else {
-		duration := time.Until(refreshExp)
-		util.SetCookie(c, "refresh-token", refreshToken, duration, true, false, timeNow)
-		util.SetCookie(c, "exp-refresh-token", fmt.Sprintf("%d", refreshExp.Unix()), duration, false, false, timeNow)
+	expRefreshCurrent := time.Unix(int64(expFloat), 0)
+	// REFRESH TOKEN: Renovar si queda menos de 6 horas
+	if time.Until(expRefreshCurrent) < 6*time.Hour {
+		util.SetCookie(c, "refresh-token", refreshToken, expRefresh.Sub(now), true, false, now)
+		util.SetCookie(c, "exp-refresh-token", fmt.Sprintf("%d", expRefresh.Unix()), expRefresh.Sub(now), false, false, now)
 	}
 
 	return c.JSON(util.NewMessage("Sesión activa"))
@@ -99,7 +79,7 @@ func (a *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	ctx := c.UserContext()
-	tokenResponse, err := a.authService.ObtenerToken(ctx, &credentials)
+	tokenResponse, err := a.authService.ObtenerTokenByCredencial(ctx, &credentials)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -112,12 +92,12 @@ func (a *AuthHandler) Login(c *fiber.Ctx) error {
 	now := time.Now().UTC()
 
 	// Refresh token: 7 días
-	util.SetCookie(c, "refresh-token", tokenResponse.TokenRefresh, 7*24*time.Hour, true, false, now)
-	util.SetCookie(c, "exp-refresh-token", fmt.Sprintf("%d", now.Add(7*24*time.Hour).Unix()), 7*24*time.Hour, false, false, now)
+	util.SetCookie(c, "refresh-token", tokenResponse.RefreshToken, tokenResponse.ExpRefreshToken.Sub(now), true, false, now)
+	util.SetCookie(c, "exp-refresh-token", fmt.Sprintf("%d", tokenResponse.ExpRefreshToken.Unix()), tokenResponse.ExpRefreshToken.Sub(now), false, false, now)
 
 	// Access token: 15 minutos
-	util.SetCookie(c, "access-token", tokenResponse.TokenAccess, 15*time.Minute, true, false, now)
-	util.SetCookie(c, "exp-access-token", fmt.Sprintf("%d", now.Add(15*time.Minute).Unix()), 15*time.Minute, false, false, now)
+	util.SetCookie(c, "access-token", tokenResponse.AccessToken, tokenResponse.ExpAccessToken.Sub(now), true, false, now)
+	util.SetCookie(c, "exp-access-token", fmt.Sprintf("%d", tokenResponse.ExpAccessToken.Unix()), tokenResponse.ExpAccessToken.Sub(now), false, false, now)
 
 	return c.JSON(util.NewMessage("Usuario autenticado"))
 }

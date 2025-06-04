@@ -10,6 +10,7 @@ type Usuario struct {
 	Id        uint       `json:"id"`
 	Username  string     `json:"username"`
 	Password  string     `json:"-"`
+	Estado    string     `json:"estado"`
 	CreatedAt time.Time  `json:"-"`
 	UpdatedAt time.Time  `json:"-"`
 	DeletedAt *time.Time `json:"-"`
@@ -28,8 +29,9 @@ type LoginRequest struct {
 // UsuarioInfo se usa para mostrar la información detallada de un usuario.
 // Incluye su id, nombre de usuario, contraseña (opcional), y su información personal.
 type UsuarioInfo struct {
-	Id        uint       `json:"id"`
+	Id        int32      `json:"id"`
 	Username  string     `json:"username"`
+	Estado    string     `json:"estado"`
 	Password  string     `json:"password,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
@@ -37,11 +39,12 @@ type UsuarioInfo struct {
 	Persona   Persona    `json:"persona"`
 }
 
-// UsuarioDetalle se usa para mostrar la información detallada de un usuario.
+// UsuarioDetail se usa para mostrar la información detallada de un usuario.
 // Incluye su id, nombre de usuario, contraseña (opcional), su información personal y los roles asignados.
-type UsuarioDetalle struct {
-	Id        uint       `json:"id"`
+type UsuarioDetail struct {
+	Id        int32      `json:"id"`
 	Username  string     `json:"username"`
+	Estado    string     `json:"estado"`
 	Password  string     `json:"password,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
@@ -53,9 +56,9 @@ type UsuarioDetalle struct {
 // UsuarioRequest se usa para las peticiones de creación o modificación de un usuario.
 // Contiene el nombre de usuario, información personal y los roles que se asignarán.
 type UsuarioRequest struct {
-	Id        uint           `json:"id,omitzero"`
+	Id        int32          `json:"id,omitzero"`
 	Username  string         `json:"username"`
 	Persona   PersonaRequest `json:"persona"`
-	Roles     []uint8        `json:"roles"`
+	Roles     []int32        `json:"roles"`
 	DeletedAt *time.Time     `json:"deletedAt"`
 }

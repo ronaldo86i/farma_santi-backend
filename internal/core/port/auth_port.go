@@ -7,7 +7,7 @@ import (
 )
 
 type AuthService interface {
-	ObtenerToken(ctx context.Context, credentials *domain.LoginRequest) (*domain.TokenResponse, error)
+	ObtenerTokenByCredencial(ctx context.Context, credentials *domain.LoginRequest) (*domain.TokenResponse, error)
 }
 
 type AuthHandler interface {

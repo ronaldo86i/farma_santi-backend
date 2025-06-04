@@ -10,6 +10,14 @@ type ProveedorService struct {
 	proveedorRepository port.ProveedorRepository
 }
 
+func (p ProveedorService) HabilitarProveedor(ctx context.Context, id *int) error {
+	return p.proveedorRepository.HabilitarProveedor(ctx, id)
+}
+
+func (p ProveedorService) DeshabilitarProveedor(ctx context.Context, id *int) error {
+	return p.proveedorRepository.DeshabilitarProveedor(ctx, id)
+}
+
 func (p ProveedorService) RegistrarProveedor(ctx context.Context, request *domain.ProveedorRequest) error {
 	return p.proveedorRepository.RegistrarProveedor(ctx, request)
 }
@@ -24,10 +32,6 @@ func (p ProveedorService) ListarProveedores(ctx context.Context) (*[]domain.Prov
 
 func (p ProveedorService) ModificarProveedor(ctx context.Context, id *int, request *domain.ProveedorRequest) error {
 	return p.proveedorRepository.ModificarProveedor(ctx, id, request)
-}
-
-func (p ProveedorService) ModificarEstadoProveedor(ctx context.Context, id *int) error {
-	return p.proveedorRepository.ModificarEstadoProveedor(ctx, id)
 }
 
 func NewProveedorService(proveedorRepository port.ProveedorRepository) *ProveedorService {

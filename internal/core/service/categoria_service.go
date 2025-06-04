@@ -4,11 +4,22 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
-	"time"
 )
 
 type CategoriaService struct {
 	categoriaRepository port.CategoriaRepository
+}
+
+func (c CategoriaService) ListarCategoriasDisponibles(ctx context.Context) (*[]domain.Categoria, error) {
+	return c.categoriaRepository.ListarCategoriasDisponibles(ctx)
+}
+
+func (c CategoriaService) HabilitarCategoria(ctx context.Context, categoriaId *int) error {
+	return c.categoriaRepository.HabilitarCategoria(ctx, categoriaId)
+}
+
+func (c CategoriaService) DeshabilitarCategoria(ctx context.Context, categoriaId *int) error {
+	return c.categoriaRepository.DeshabilitarCategoria(ctx, categoriaId)
 }
 
 func (c CategoriaService) ObtenerCategoriaById(ctx context.Context, categoriaId *int) (*domain.Categoria, error) {
@@ -19,14 +30,7 @@ func (c CategoriaService) ListarCategorias(ctx context.Context) (*[]domain.Categ
 	return c.categoriaRepository.ListarCategorias(ctx)
 }
 
-func (c CategoriaService) ModificarEstadoCategoria(ctx context.Context, categoriaId *int) error {
-	return c.categoriaRepository.ModificarEstadoCategoria(ctx, categoriaId)
-}
-
 func (c CategoriaService) ModificarCategoria(ctx context.Context, categoriaId *int, categoriaRequest *domain.CategoriaRequest) error {
-	if categoriaRequest.DeletedAt != nil {
-		*categoriaRequest.DeletedAt = time.Now()
-	}
 	return c.categoriaRepository.ModificarCategoria(ctx, categoriaId, categoriaRequest)
 }
 

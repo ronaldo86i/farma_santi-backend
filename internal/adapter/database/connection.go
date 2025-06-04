@@ -2,24 +2,24 @@ package database
 
 import (
 	"context"
+	"farma-santi_backend/internal/slog_logger"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
+	"golang.org/x/exp/slog"
 )
 
 type DB struct {
 	Pool *pgxpool.Pool
 }
 
-// DBInstance Instancia global de la conexión
 var DBInstance = DB{}
 
-// Connection establece la conexión con la base de datos Postgres usando pgxpool
 func Connection() error {
-	// Leer variables de entorno
 	host := os.Getenv("DB_HOST")
 	user := os.Getenv("DB_USER")
 	password := os.Getenv("DB_PASSWORD")
@@ -28,19 +28,31 @@ func Connection() error {
 	timezone := os.Getenv("DB_TIMEZONE")
 	sslMode := "disable"
 
-	// Validación
 	if host == "" || user == "" || password == "" || dbname == "" || port == "" || timezone == "" {
 		return fmt.Errorf("una o más variables de entorno están vacías para inicializar la base de datos")
 	}
 
-	// Cadena de conexión
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=%s",
 		user, password, host, port, dbname, sslMode, timezone)
 
-	// Configuración del pool
 	config, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return fmt.Errorf("error al parsear la cadena de conexión: %w", err)
+	}
+
+	// Configuración de slog
+	// Configuración del logger con formato y nivel de log
+	logger := slog.New(
+		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:     slog.LevelDebug,
+			AddSource: true,
+		}),
+	)
+
+	// Asignar tracer con slog adaptado
+	config.ConnConfig.Tracer = &tracelog.TraceLog{
+		Logger:   slog_logger.NewLogger(logger),
+		LogLevel: tracelog.LogLevelTrace,
 	}
 
 	// Configuraciones opcionales del pool
@@ -49,7 +61,6 @@ func Connection() error {
 	config.MaxConnLifetime = time.Hour
 	config.HealthCheckPeriod = time.Minute
 
-	// Conexión
 	ctx := context.Background()
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
@@ -57,15 +68,13 @@ func Connection() error {
 		return err
 	}
 
-	// Verificación de conexión
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatal("No se pudo conectar a la base de datos:", err)
 		return err
 	}
 
-	// Asignar pool a la instancia global
 	DBInstance.Pool = pool
 
-	fmt.Println("Conexión exitosa a Postgres.")
+	logger.Info("✅ Conexión exitosa a Postgres.")
 	return nil
 }

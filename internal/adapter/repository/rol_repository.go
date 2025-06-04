@@ -18,11 +18,58 @@ type RolRepository struct {
 	db *database.DB
 }
 
-func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequestUpdate) error {
-	if rolRequestUpdate.DeletedAt != nil {
-		*rolRequestUpdate.DeletedAt = time.Now()
+func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
+	query := `UPDATE rol r SET deleted_at = NULL, estado= 'Activo' WHERE r.id = $1`
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return datatype.NewInternalServerError()
 	}
-	query := `UPDATE negocio.rol SET nombre = $1, deleted_at = $2 WHERE id = $3`
+
+	defer func(tx pgx.Tx, ctx context.Context) {
+		_ = tx.Rollback(ctx)
+	}(tx, ctx)
+
+	_, err = tx.Exec(ctx, query, *id)
+	if err != nil {
+		return datatype.NewInternalServerError()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return datatype.NewInternalServerError()
+	}
+
+	return nil
+}
+
+func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
+	query := `
+		UPDATE rol r 
+		SET deleted_at = CURRENT_TIMESTAMP, estado= 'Inactivo'
+		WHERE r.id = $1
+	`
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return datatype.NewInternalServerError()
+	}
+	defer func(tx pgx.Tx, ctx context.Context) {
+		_ = tx.Rollback(ctx)
+	}(tx, ctx)
+
+	_, err = tx.Exec(ctx, query, *id)
+	if err != nil {
+		return datatype.NewInternalServerError()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return datatype.NewInternalServerError()
+	}
+
+	return nil
+}
+
+func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequest) error {
+
+	query := `UPDATE rol SET nombre = $1 WHERE id = $2`
 
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
@@ -37,7 +84,7 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 
 	}(tx, ctx)
 
-	_, err = tx.Exec(ctx, query, rolRequestUpdate.Nombre, rolRequestUpdate.DeletedAt, id)
+	_, err = tx.Exec(ctx, query, rolRequestUpdate.Nombre, id)
 	if err != nil {
 		// Si el nombre ya existe (violación de restricción única)
 		var pgErr *pgconn.PgError
@@ -59,7 +106,7 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 
 func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolRequest) error {
 	// Primero, verificamos si el rol ya existe en la base de datos
-	queryCheck := `SELECT deleted_at FROM negocio.rol WHERE nombre = $1`
+	queryCheck := `SELECT deleted_at FROM rol WHERE nombre = $1`
 	var deletedAt *time.Time
 	err := r.db.Pool.QueryRow(ctx, queryCheck, rolRequest.Nombre).Scan(&deletedAt)
 
@@ -76,41 +123,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 		}
 	}
 
-	// Si el rol existe pero está eliminado, lo restauramos
-	if err == nil && deletedAt != nil {
-		queryRestaurar := `
-		UPDATE negocio.rol
-		SET deleted_at = NULL
-		WHERE nombre = $1;
-		`
-		tx, err := r.db.Pool.Begin(ctx)
-		if err != nil {
-			return datatype.NewInternalServerError()
-		}
-		defer func(tx pgx.Tx, ctx context.Context) {
-			_ = tx.Rollback(ctx) // Aseguramos rollback si algo falla
-		}(tx, ctx)
-
-		// Restauramos el rol
-		_, err = tx.Exec(ctx, queryRestaurar, rolRequest.Nombre)
-		if err != nil {
-			return datatype.NewInternalServerError()
-		}
-
-		// Confirmamos la transacción
-		if err := tx.Commit(ctx); err != nil {
-			return datatype.NewInternalServerError()
-		}
-
-		return nil
-	}
-
-	// Si el rol no existe, lo insertamos como un nuevo rol
-	queryInsert := `
-		INSERT INTO negocio.rol(nombre, deleted_at) 
-		VALUES ($1, NULL) 
-		RETURNING id, nombre, created_at, deleted_at;
-	`
+	queryInsert := `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id, nombre, created_at, deleted_at;`
 
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
@@ -151,37 +164,8 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 	return nil
 }
 
-func (r RolRepository) ModificarEstadoRol(ctx context.Context, id *int) error {
-	query := `
-		UPDATE negocio.rol r 
-		SET deleted_at = CASE 
-			WHEN deleted_at IS NULL THEN now()
-		    WHEN deleted_at IS NOT NULL THEN NULL
-			END
-		WHERE r.id = $1
-	`
-	tx, err := r.db.Pool.Begin(ctx)
-	if err != nil {
-		return datatype.NewInternalServerError()
-	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
-
-	_, err = tx.Exec(ctx, query, *id)
-	if err != nil {
-		return datatype.NewInternalServerError()
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
-	}
-
-	return nil
-}
-
 func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
-	query := "SELECT r.id, r.nombre, r.created_at, r.deleted_at FROM negocio.rol r ORDER BY created_at DESC "
+	query := "SELECT r.id, r.nombre,r.estado, r.created_at, r.deleted_at FROM rol r ORDER BY created_at DESC "
 	rows, err := r.db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerError()
@@ -191,7 +175,7 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	var roles []domain.Rol
 	for rows.Next() {
 		var rol domain.Rol
-		if err := rows.Scan(&rol.Id, &rol.Nombre, &rol.CreatedAt, &rol.DeletedAt); err != nil {
+		if err := rows.Scan(&rol.Id, &rol.Nombre, &rol.Estado, &rol.CreatedAt, &rol.DeletedAt); err != nil {
 			return nil, datatype.NewInternalServerError()
 		}
 		roles = append(roles, rol)
@@ -207,7 +191,7 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 }
 
 func (r RolRepository) ObtenerRolById(ctx context.Context, id *int) (*domain.Rol, error) {
-	query := "SELECT r.id, r.nombre, r.created_at, r.deleted_at FROM negocio.rol r WHERE r.id = $1 ORDER BY r.id"
+	query := "SELECT r.id, r.nombre, r.created_at, r.deleted_at FROM rol r WHERE r.id = $1 ORDER BY r.id"
 	row := r.db.Pool.QueryRow(ctx, query, id)
 
 	var rol domain.Rol

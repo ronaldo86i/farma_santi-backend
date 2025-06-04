@@ -24,8 +24,6 @@ func NewMessageData[T any](data T, message string, messages ...string) map[strin
 		builder.WriteString(s)
 	}
 
-	// Validar que T sea struct en tiempo de ejecución (no se puede en compile-time en Go 1.22)
-	// Se puede usar reflect para forzar eso si quieres.
 	return map[string]interface{}{
 		"message": builder.String(),
 		"data":    data,
