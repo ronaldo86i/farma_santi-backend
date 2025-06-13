@@ -24,7 +24,7 @@ func (c CategoriaRepository) ListarCategoriasDisponibles(ctx context.Context) (*
 	rows, err := c.db.Pool.Query(ctx, query)
 	if err != nil {
 		log.Println(err.Error())
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -33,7 +33,7 @@ func (c CategoriaRepository) ListarCategoriasDisponibles(ctx context.Context) (*
 		err := rows.Scan(&categoria.Id, &categoria.Nombre, &categoria.Estado, &categoria.CreatedAt, &categoria.DeletedAt)
 		if err != nil {
 			log.Println(err.Error())
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		categorias = append(categorias, categoria)
 	}
@@ -41,7 +41,7 @@ func (c CategoriaRepository) ListarCategoriasDisponibles(ctx context.Context) (*
 	// Verifica si hubo algún error durante la iteración
 	if err := rows.Err(); err != nil {
 		log.Println(err.Error())
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(categorias) == 0 {
 		return &[]domain.Categoria{}, nil
@@ -54,17 +54,17 @@ func (c CategoriaRepository) HabilitarCategoria(ctx context.Context, categoriaId
 	//Inicializar transacción
 	tx, err := c.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	//Ejecutar transacción
 	_, err = tx.Exec(ctx, query, *categoriaId)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmamos la transacción
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return nil
 }
@@ -74,17 +74,17 @@ func (c CategoriaRepository) DeshabilitarCategoria(ctx context.Context, categori
 	//Inicializar transacción
 	tx, err := c.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	//Ejecutar transacción
 	_, err = tx.Exec(ctx, query, *categoriaId)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmamos la transacción
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return nil
 }
@@ -102,7 +102,7 @@ func (c CategoriaRepository) ObtenerCategoriaById(ctx context.Context, categoria
 			}
 		}
 		// Error en la consulta a la Base de datos
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	return &categoria, nil
 }
@@ -113,7 +113,7 @@ func (c CategoriaRepository) ListarCategorias(ctx context.Context) (*[]domain.Ca
 	rows, err := c.db.Pool.Query(ctx, query)
 	if err != nil {
 		log.Println(err.Error())
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -122,7 +122,7 @@ func (c CategoriaRepository) ListarCategorias(ctx context.Context) (*[]domain.Ca
 		err := rows.Scan(&categoria.Id, &categoria.Nombre, &categoria.Estado, &categoria.CreatedAt, &categoria.DeletedAt)
 		if err != nil {
 			log.Println(err.Error())
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		categorias = append(categorias, categoria)
 	}
@@ -130,7 +130,7 @@ func (c CategoriaRepository) ListarCategorias(ctx context.Context) (*[]domain.Ca
 	// Verifica si hubo algún error durante la iteración
 	if err := rows.Err(); err != nil {
 		log.Println(err.Error())
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(categorias) == 0 {
 		return &[]domain.Categoria{}, nil
@@ -144,7 +144,7 @@ func (c CategoriaRepository) ModificarCategoria(ctx context.Context, categoriaId
 	// Iniciar transacción
 	tx, err := c.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	defer func() {
 		// Rollback si no se hizo commit
@@ -155,8 +155,6 @@ func (c CategoriaRepository) ModificarCategoria(ctx context.Context, categoriaId
 
 	_, err = tx.Exec(ctx, query, categoriaRequest.Nombre, *categoriaId)
 	if err != nil {
-		log.Println("ERROR:", err.Error())
-
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return &datatype.ErrorResponse{
@@ -164,12 +162,12 @@ func (c CategoriaRepository) ModificarCategoria(ctx context.Context, categoriaId
 				Message: "Ya existe una categoría con ese nombre",
 			}
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmar transacción
 	if err = tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -184,7 +182,7 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 	res, err := c.db.Pool.Exec(ctx, queryCheck, categoriaRequest.Nombre)
 	if err != nil {
 		// Si hay error en la consulta, retornamos un error de servicio no disponible
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	// Verificar si la consulta encontró alguna fila
@@ -204,7 +202,7 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 
 	tx, err := c.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -213,12 +211,12 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 	// Insertamos la nueva categoría
 	_, err = tx.Exec(ctx, queryInsert, categoriaRequest.Nombre)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmamos la transacción
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil

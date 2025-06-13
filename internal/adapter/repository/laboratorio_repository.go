@@ -22,7 +22,7 @@ func (l LaboratorioRepository) ListarLaboratoriosDisponibles(ctx context.Context
 	query := "SELECT l.id, l.nombre,l.estado,l.direccion, l.created_at,l.deleted_at FROM laboratorio l WHERE l.estado = 'Activo' ORDER BY id"
 	rows, err := l.db.Pool.Query(ctx, query)
 	if err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -30,13 +30,13 @@ func (l LaboratorioRepository) ListarLaboratoriosDisponibles(ctx context.Context
 	for rows.Next() {
 		var lab domain.LaboratorioInfo
 		if err := rows.Scan(&lab.Id, &lab.Nombre, &lab.Estado, &lab.Direccion, &lab.CreatedAt, &lab.DeletedAt); err != nil {
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		list = append(list, lab)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(list) == 0 {
 		return &[]domain.LaboratorioInfo{}, nil
@@ -48,7 +48,7 @@ func (l LaboratorioRepository) ListarLaboratorios(ctx context.Context) (*[]domai
 	query := "SELECT l.id, l.nombre,l.estado,l.direccion, l.created_at,l.deleted_at FROM laboratorio l ORDER BY id "
 	rows, err := l.db.Pool.Query(ctx, query)
 	if err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -56,13 +56,13 @@ func (l LaboratorioRepository) ListarLaboratorios(ctx context.Context) (*[]domai
 	for rows.Next() {
 		var lab domain.LaboratorioInfo
 		if err := rows.Scan(&lab.Id, &lab.Nombre, &lab.Estado, &lab.Direccion, &lab.CreatedAt, &lab.DeletedAt); err != nil {
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		list = append(list, lab)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(list) == 0 {
 		return &[]domain.LaboratorioInfo{}, nil
@@ -82,7 +82,7 @@ func (l LaboratorioRepository) ObtenerLaboratorioById(ctx context.Context, id *i
 				Message: "Laboratorio no encontrado",
 			}
 		}
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	return &laboratorio, nil
@@ -97,7 +97,7 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		// Error al ejecutar la consulta
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Si se encontró un laboratorio con ese nombre y no está eliminado
@@ -113,7 +113,7 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 	_, err = l.db.Pool.Exec(ctx, queryInsert, laboratorioRequest.Nombre, laboratorioRequest.Direccion)
 
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -123,7 +123,7 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 	query := `UPDATE laboratorio l SET nombre=$1,direccion=$2 WHERE l.id = $3`
 	tx, err := l.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -150,11 +150,11 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 		}
 
 		// Manejo de error interno
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -164,7 +164,7 @@ func (l LaboratorioRepository) HabilitarLaboratorio(ctx context.Context, id *int
 	query := `UPDATE laboratorio l SET deleted_at = NULL, estado= 'Activo' WHERE l.id = $1`
 	tx, err := l.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -172,11 +172,11 @@ func (l LaboratorioRepository) HabilitarLaboratorio(ctx context.Context, id *int
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -186,7 +186,7 @@ func (l LaboratorioRepository) DeshabilitarLaboratorio(ctx context.Context, id *
 	query := `UPDATE laboratorio l SET deleted_at = CURRENT_TIMESTAMP, estado= 'Inactivo' WHERE l.id = $1`
 	tx, err := l.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -194,11 +194,11 @@ func (l LaboratorioRepository) DeshabilitarLaboratorio(ctx context.Context, id *
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil

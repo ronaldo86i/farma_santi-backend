@@ -16,13 +16,15 @@ import (
 )
 
 type Server struct {
-	authHandler        port.AuthHandler
-	rolHandler         port.RolHandler
-	usuarioHandler     port.UsuarioHandler
-	categoriaHandler   port.CategoriaHandler
-	proveedorHandler   port.ProveedorHandler
-	laboratorioHandler port.LaboratorioHandler
-	productoHandler    port.ProductoHandler
+	authHandler            port.AuthHandler
+	rolHandler             port.RolHandler
+	usuarioHandler         port.UsuarioHandler
+	categoriaHandler       port.CategoriaHandler
+	proveedorHandler       port.ProveedorHandler
+	laboratorioHandler     port.LaboratorioHandler
+	productoHandler        port.ProductoHandler
+	loteProductoHandler    port.LoteProductoHandler
+	principioActivoHandler port.PrincipioActivoHandler
 }
 
 func NewServer(
@@ -33,15 +35,19 @@ func NewServer(
 	proveedorHandler port.ProveedorHandler,
 	laboratorioHandler port.LaboratorioHandler,
 	productoHandler port.ProductoHandler,
+	loteProductoHandler port.LoteProductoHandler,
+	principioActivoHandler port.PrincipioActivoHandler,
 ) *Server {
 	return &Server{
-		authHandler:        authHandler,
-		rolHandler:         rolHandler,
-		usuarioHandler:     usuarioHandler,
-		categoriaHandler:   categoriaHandler,
-		proveedorHandler:   proveedorHandler,
-		laboratorioHandler: laboratorioHandler,
-		productoHandler:    productoHandler,
+		authHandler:            authHandler,
+		rolHandler:             rolHandler,
+		usuarioHandler:         usuarioHandler,
+		categoriaHandler:       categoriaHandler,
+		proveedorHandler:       proveedorHandler,
+		laboratorioHandler:     laboratorioHandler,
+		productoHandler:        productoHandler,
+		loteProductoHandler:    loteProductoHandler,
+		principioActivoHandler: principioActivoHandler,
 	}
 }
 

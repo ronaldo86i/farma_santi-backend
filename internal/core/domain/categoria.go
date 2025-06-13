@@ -13,3 +13,8 @@ type Categoria struct {
 type CategoriaRequest struct {
 	Nombre string `json:"nombre"`
 }
+
+type CategoriaSimple struct {
+	Id     int32  `json:"id"`
+	Nombre string `json:"nombre"`
+}

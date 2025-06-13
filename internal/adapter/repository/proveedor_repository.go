@@ -21,7 +21,7 @@ func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) er
 	query := `UPDATE proveedor p SET deleted_at = NULL,estado='Activo' WHERE p.id = $1`
 	tx, err := p.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -29,11 +29,11 @@ func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) er
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -43,7 +43,7 @@ func (p ProveedorRepository) DeshabilitarProveedor(ctx context.Context, id *int)
 	query := `UPDATE proveedor p SET deleted_at=CURRENT_TIMESTAMP,estado='Inactivo' WHERE p.id = $1`
 	tx, err := p.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -51,11 +51,11 @@ func (p ProveedorRepository) DeshabilitarProveedor(ctx context.Context, id *int)
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	if err != nil {
 		log.Println("proveedor.registrar", err)
 		// Si hay error en la consulta, retornamos un error de servicio no disponible
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	// Verificar si la consulta encontró alguna fila
@@ -86,7 +86,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	tx, err := p.db.Pool.Begin(ctx)
 	if err != nil {
 		// Si no se puede iniciar la transacción, retornar error interno
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Aseguramos que el rollback se ejecute si algo falla
@@ -100,8 +100,9 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	queryInsert := `INSERT INTO proveedor(nit, razon_social, representante, direccion, telefono, email, celular) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err = tx.Exec(ctx, queryInsert, request.NIT, request.RazonSocial, request.Representante, request.Direccion, request.Telefono, request.Email, request.Celular)
 	if err != nil {
+
 		// Si ocurre un error en la inserción, retornamos un error interno
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmar la transacción si no hubo errores
@@ -109,7 +110,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	if err != nil {
 		// Si ocurre un error al hacer commit, realizamos rollback
 		_ = tx.Rollback(ctx)
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return nil
 }
@@ -126,7 +127,7 @@ func (p ProveedorRepository) ObtenerProveedorById(ctx context.Context, id *int) 
 				Message: "No existe el proveedor",
 			}
 		}
-		return nil, datatype.NewStatusServiceUnavailableError()
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	return &proveedor, nil
@@ -138,14 +139,14 @@ func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.P
 	rows, err := p.db.Pool.Query(ctx, query)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Println(err)
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var proveedor domain.ProveedorInfo
 		err = rows.Scan(&proveedor.Id, &proveedor.Estado, &proveedor.NIT, &proveedor.RazonSocial, &proveedor.Representante, &proveedor.Direccion, &proveedor.CreatedAt, &proveedor.DeletedAt)
 		if err != nil {
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		proveedores = append(proveedores, proveedor)
 	}
@@ -159,7 +160,7 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 	tx, err := p.db.Pool.Begin(ctx)
 	if err != nil {
 		// Si no se puede iniciar la transacción, retornar error interno
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Aseguramos que el rollback se ejecute si algo falla
@@ -192,13 +193,13 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 		}
 
 		// Manejo de error interno
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Confirmar la transacción
 	err = tx.Commit(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil

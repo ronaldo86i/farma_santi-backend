@@ -498,3 +498,58 @@ func ErrorHandler(ctx *fiber.Ctx, err error) error {
 	// Respuesta estándar para otros errores
 	return ctx.Status(code).SendString(e.Message)
 }
+
+// BackupFiles crea una copia en memoria de los archivos de un directorio
+func (file) BackupFiles(dir string) (map[string][]byte, error) {
+	backup := make(map[string][]byte)
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return backup, nil
+		}
+		return nil, err
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, file.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		backup[file.Name()] = data
+	}
+
+	return backup, nil
+}
+
+// RestoreFiles borra archivos actuales y restaura desde un backup
+func (file) RestoreFiles(backup map[string][]byte, dir string) error {
+	// Eliminar archivos actuales
+	files, err := os.ReadDir(dir)
+	if err == nil {
+		for _, file := range files {
+			_ = os.Remove(filepath.Join(dir, file.Name()))
+		}
+	}
+
+	// Restaurar archivos
+	for name, data := range backup {
+		err := os.WriteFile(filepath.Join(dir, name), data, 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DeleteFiles elimina una lista de archivos de un directorio
+func (file) DeleteFiles(dir string, filenames []string) {
+	for _, name := range filenames {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+}

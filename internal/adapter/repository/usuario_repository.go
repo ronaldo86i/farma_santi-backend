@@ -29,12 +29,12 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 	}
 	hashPassword, err := util.Hash.HashearPassword(passwordGenerated)
 	if err != nil {
-		return nil, datatype.NewStatusServiceUnavailableError()
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	query := `UPDATE usuario SET password = $1,updated_at=CURRENT_TIMESTAMP WHERE id = $2 `
 	tx, err := u.db.Pool.Begin(ctx)
 	if err != nil {
-		return nil, datatype.NewStatusServiceUnavailableError()
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	defer func() {
@@ -44,10 +44,10 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 	}()
 	_, err = tx.Exec(ctx, query, hashPassword, *usuarioId)
 	if err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	usuario, err := u.ObtenerUsuarioDetalle(ctx, usuarioId)
 	if err != nil {
@@ -62,7 +62,7 @@ func (u UsuarioRepository) HabilitarUsuarioById(ctx context.Context, usuarioId *
 	query := `UPDATE usuario u SET deleted_at=NULL, estado='Activo' WHERE u.id = $1`
 	tx, err := u.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	defer func() {
@@ -73,10 +73,10 @@ func (u UsuarioRepository) HabilitarUsuarioById(ctx context.Context, usuarioId *
 
 	_, err = tx.Exec(ctx, query, *usuarioId)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (u UsuarioRepository) DeshabilitarUsuarioById(ctx context.Context, usuarioI
 	query := `UPDATE usuario u SET deleted_at=CURRENT_TIMESTAMP, estado='Inactivo' WHERE u.id = $1`
 	tx, err := u.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableError()
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	defer func() {
@@ -95,10 +95,10 @@ func (u UsuarioRepository) DeshabilitarUsuarioById(ctx context.Context, usuarioI
 	}()
 	_, err = tx.Exec(ctx, query, *usuarioId)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.Usuari
 	rows, err := u.db.Pool.Query(ctx, query)
 	if err != nil {
 		log.Println("Error al listar usuarios", err)
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -146,14 +146,14 @@ func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.Usuari
 		err := rows.Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona)
 		if err != nil {
 			log.Print("Error al obtener usuario", err.Error())
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		usuarios = append(usuarios, usuarioDetalle)
 	}
 
 	// Verifica si hubo algún error durante la iteración
 	if err := rows.Err(); err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(usuarios) == 0 {
 		return &[]domain.UsuarioInfo{}, nil
@@ -167,7 +167,7 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 
 	tx, err := u.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func() {
 		if err != nil {
@@ -273,7 +273,7 @@ func (u UsuarioRepository) ObtenerUsuarioDetalle(ctx context.Context, usuarioId 
 				Message: "No se encontró un usuario con el id proporcionado.",
 			}
 		}
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	return &usuarioDetalle, nil
@@ -401,7 +401,7 @@ func (u UsuarioRepository) ObtenerUsuario(ctx context.Context, username *string)
 			}
 		}
 		// Error en la consulta a la Base de datos
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Si el usuario está eliminado

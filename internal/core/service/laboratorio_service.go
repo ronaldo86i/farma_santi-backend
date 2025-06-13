@@ -4,6 +4,7 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
+	"strings"
 )
 
 type LaboratorioService struct {
@@ -23,10 +24,14 @@ func (l LaboratorioService) ObtenerLaboratorioById(ctx context.Context, id *int)
 }
 
 func (l LaboratorioService) RegistrarLaboratorio(ctx context.Context, laboratorioRequest *domain.LaboratorioRequest) error {
+	laboratorioRequest.Nombre = strings.TrimSpace(laboratorioRequest.Nombre)
+	laboratorioRequest.Nombre = strings.ToUpper(laboratorioRequest.Nombre)
 	return l.laboratorioRepository.RegistrarLaboratorio(ctx, laboratorioRequest)
 }
 
 func (l LaboratorioService) ModificarLaboratorio(ctx context.Context, id *int, laboratorioRequest *domain.LaboratorioRequest) error {
+	laboratorioRequest.Nombre = strings.TrimSpace(laboratorioRequest.Nombre)
+	laboratorioRequest.Nombre = strings.ToUpper(laboratorioRequest.Nombre)
 	return l.laboratorioRepository.ModificarLaboratorio(ctx, id, laboratorioRequest)
 }
 

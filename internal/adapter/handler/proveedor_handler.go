@@ -28,7 +28,7 @@ func (p ProveedorHandler) HabilitarProveedor(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))
 }
@@ -46,7 +46,7 @@ func (p ProveedorHandler) DeshabilitarProveedor(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))
 }
@@ -64,7 +64,7 @@ func (p ProveedorHandler) RegistrarProveedor(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor registrado correctamente"))
 }
@@ -82,7 +82,7 @@ func (p ProveedorHandler) ObtenerProveedorById(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return c.Status(http.StatusOK).JSON(&proveedor)
@@ -97,7 +97,7 @@ func (p ProveedorHandler) ListarProveedores(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.Status(http.StatusOK).JSON(*proveedores)
 }
@@ -121,7 +121,7 @@ func (p ProveedorHandler) ModificarProveedor(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return c.Status(http.StatusOK).JSON(util.NewMessage("Proveedor actualizado correctamente"))

@@ -27,7 +27,6 @@ RUN cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
-COPY --from=build /app/.env .env
 COPY --from=build /app/farmasanti_backend .
 
 EXPOSE 8890

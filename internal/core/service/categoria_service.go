@@ -4,6 +4,7 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
+	"strings"
 )
 
 type CategoriaService struct {
@@ -31,10 +32,14 @@ func (c CategoriaService) ListarCategorias(ctx context.Context) (*[]domain.Categ
 }
 
 func (c CategoriaService) ModificarCategoria(ctx context.Context, categoriaId *int, categoriaRequest *domain.CategoriaRequest) error {
+	categoriaRequest.Nombre = strings.TrimSpace(categoriaRequest.Nombre)
+	categoriaRequest.Nombre = strings.ToUpper(categoriaRequest.Nombre)
 	return c.categoriaRepository.ModificarCategoria(ctx, categoriaId, categoriaRequest)
 }
 
 func (c CategoriaService) RegistrarCategoria(ctx context.Context, categoriaRequest *domain.CategoriaRequest) error {
+	categoriaRequest.Nombre = strings.TrimSpace(categoriaRequest.Nombre)
+	categoriaRequest.Nombre = strings.ToUpper(categoriaRequest.Nombre)
 	return c.categoriaRepository.RegistrarCategoria(ctx, categoriaRequest)
 }
 

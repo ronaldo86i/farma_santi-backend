@@ -23,7 +23,7 @@ func (l LaboratorioHandler) ListarLaboratoriosDisponibles(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.JSON(&list)
 }
@@ -36,7 +36,7 @@ func (l LaboratorioHandler) ListarLaboratorios(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.JSON(&list)
 }
@@ -54,7 +54,7 @@ func (l LaboratorioHandler) ObtenerLaboratorioById(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.JSON(&lab)
 }
@@ -114,7 +114,7 @@ func (l LaboratorioHandler) HabilitarLaboratorio(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.JSON(util.NewMessage("Laboratorio actualizado correctamente"))
 }
@@ -132,7 +132,7 @@ func (l LaboratorioHandler) DeshabilitarLaboratorio(c *fiber.Ctx) error {
 		if errors.As(err, &errorResponse) {
 			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	return c.JSON(util.NewMessage("Laboratorio actualizado correctamente"))
 }

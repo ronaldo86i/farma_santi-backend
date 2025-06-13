@@ -40,8 +40,23 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Proveedores := v1.Group("/proveedores")
 	v1Laboratorios := v1.Group("/laboratorios")
 	v1Productos := v1.Group("/productos")
+	v1UsuariosMe := v1Usuarios.Group("/me")
+	v1LotesProductos := v1.Group("/lotes-productos")
+	v1PrincipiosActivos := v1.Group("/principios-activos")
 
-	v1Productos.Use(middleware.HostnameMiddleware)
+	// path: /api/v1/usuarios/me
+	v1UsuariosMe.Get("", limite, s.usuarioHandler.ObtenerUsuarioActual)
+
+	// Middleware para endpoint
+	v1Productos.Use(middleware.HostnameMiddleware, middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1Roles.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
+	v1Usuarios.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
+	v1Categorias.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1Proveedores.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
+	v1Productos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1Laboratorios.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1LotesProductos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1PrincipiosActivos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	// path: /api/v1/auth
 	v1Auth.Post("/login", limite, s.authHandler.Login)
 	v1Auth.Get("/logout", limite, s.authHandler.Logout)
@@ -58,7 +73,6 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 
 	// path: /api/v1/usuarios
 	v1Usuarios.Get("", limite, s.usuarioHandler.ListarUsuarios)
-	v1Usuarios.Get("/me", limite, s.usuarioHandler.ObtenerUsuarioActual)
 	v1Usuarios.Get("/:usuarioId", limite, s.usuarioHandler.ObtenerUsuarioDetalle)
 	v1Usuarios.Post("", limite, s.usuarioHandler.RegistrarUsuario)
 	v1Usuarios.Patch("/estado/habilitar/:usuarioId", limite, s.usuarioHandler.HabilitarUsuarioById)
@@ -95,6 +109,22 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	//path: /api/v1/productos
 	v1Productos.Get("/unidades-medida", limite, s.productoHandler.ListarUnidadesMedida)
 	v1Productos.Get("/formas-farmaceuticas", limite, s.productoHandler.ListarFormasFarmaceuticas)
-	v1Productos.Post("", limite, s.productoHandler.RegistrarProducto)
 	v1Productos.Get("", limite, s.productoHandler.ListarProductos)
+	v1Productos.Get("/:productoId", limite, s.productoHandler.ObtenerProductoById)
+	v1Productos.Post("", limite, s.productoHandler.RegistrarProducto)
+	v1Productos.Put("/:productoId", limite, s.productoHandler.ModificarProducto)
+	v1Productos.Patch("/estado/habilitar/:productoId", limite, s.productoHandler.HabilitarProducto)
+	v1Productos.Patch("/estado/deshabilitar/:productoId", limite, s.productoHandler.DeshabilitarProducto)
+
+	//path: /api/v1/lotes-productos
+	v1LotesProductos.Get("", limite, s.loteProductoHandler.ListarLotesProductos)
+	v1LotesProductos.Get("/:loteProductoId", limite, s.loteProductoHandler.ObtenerLoteProductoById)
+	v1LotesProductos.Post("", limite, s.loteProductoHandler.RegistrarLoteProducto)
+	v1LotesProductos.Put("/:loteProductoId", limite, s.loteProductoHandler.ModificarLoteProducto)
+
+	//path: /api/v1/principios-activos
+	v1PrincipiosActivos.Post("", limite, s.principioActivoHandler.RegistrarPrincipioActivo)
+	v1PrincipiosActivos.Put("/:principioActivoId", limite, s.principioActivoHandler.ModificarPrincipioActivo)
+	v1PrincipiosActivos.Get("", limite, s.principioActivoHandler.ListarPrincipioActivo)
+	v1PrincipiosActivos.Get("/:principioActivoId", limite, s.principioActivoHandler.ObtenerPrincipioActivoById)
 }

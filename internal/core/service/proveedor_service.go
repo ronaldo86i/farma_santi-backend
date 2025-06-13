@@ -4,6 +4,7 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
+	"strings"
 )
 
 type ProveedorService struct {
@@ -19,6 +20,7 @@ func (p ProveedorService) DeshabilitarProveedor(ctx context.Context, id *int) er
 }
 
 func (p ProveedorService) RegistrarProveedor(ctx context.Context, request *domain.ProveedorRequest) error {
+	request.RazonSocial = strings.ToUpper(request.RazonSocial)
 	return p.proveedorRepository.RegistrarProveedor(ctx, request)
 }
 
@@ -31,6 +33,7 @@ func (p ProveedorService) ListarProveedores(ctx context.Context) (*[]domain.Prov
 }
 
 func (p ProveedorService) ModificarProveedor(ctx context.Context, id *int, request *domain.ProveedorRequest) error {
+	request.RazonSocial = strings.ToUpper(request.RazonSocial)
 	return p.proveedorRepository.ModificarProveedor(ctx, id, request)
 }
 

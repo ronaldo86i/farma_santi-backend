@@ -22,7 +22,7 @@ func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
 	query := `UPDATE rol r SET deleted_at = NULL, estado= 'Activo' WHERE r.id = $1`
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	defer func(tx pgx.Tx, ctx context.Context) {
@@ -31,11 +31,11 @@ func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -49,7 +49,7 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 	`
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
@@ -57,11 +57,11 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -94,11 +94,11 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 				Message: "Ya existe un rol con ese nombre",
 			}
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -112,7 +112,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		// Error al ejecutar la consulta
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Si el rol existe y no está eliminado
@@ -151,14 +151,14 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return &datatype.ErrorResponse{
 				Code:    http.StatusConflict,
-				Message: "Ya existe un rol con ese nombre",
+				Message: "Ya existe ese rol",
 			}
 		}
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerError()
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -168,7 +168,7 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	query := "SELECT r.id, r.nombre,r.estado, r.created_at, r.deleted_at FROM rol r ORDER BY created_at DESC "
 	rows, err := r.db.Pool.Query(ctx, query)
 	if err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 
@@ -176,13 +176,13 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	for rows.Next() {
 		var rol domain.Rol
 		if err := rows.Scan(&rol.Id, &rol.Nombre, &rol.Estado, &rol.CreatedAt, &rol.DeletedAt); err != nil {
-			return nil, datatype.NewInternalServerError()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		roles = append(roles, rol)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	if len(roles) == 0 {
 		return &[]domain.Rol{}, nil
@@ -202,7 +202,7 @@ func (r RolRepository) ObtenerRolById(ctx context.Context, id *int) (*domain.Rol
 				Message: "Rol no encontrado",
 			}
 		}
-		return nil, datatype.NewInternalServerError()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	return &rol, nil

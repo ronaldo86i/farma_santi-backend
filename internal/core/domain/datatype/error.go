@@ -9,27 +9,50 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// Implementar la función `Error` para que cumpla con la interfaz `error`
 func (e ErrorResponse) Error() string {
 	return e.Message
 }
 
-// NewInternalServerError crea un objeto de error común para el servidor
-func NewInternalServerError() *ErrorResponse {
+func NewInternalServerErrorGeneric() *ErrorResponse {
 	return &ErrorResponse{
 		Code:    http.StatusInternalServerError,
 		Message: "Ha ocurrido un error interno en el servidor. Por favor, inténtelo más tarde.",
 	}
 }
 
-// NewStatusServiceUnavailableError crea un objeto de error de servicio no disponible para el servidor
-func NewStatusServiceUnavailableError() *ErrorResponse {
+func NewStatusServiceUnavailableErrorGeneric() *ErrorResponse {
 	return &ErrorResponse{
 		Code:    http.StatusServiceUnavailable,
 		Message: "Servicio no disponible, inténtelo más tarde.",
 	}
 }
 
+func NewInternalServerError(message string) *ErrorResponse {
+	return &ErrorResponse{
+		Code:    http.StatusInternalServerError,
+		Message: message,
+	}
+}
+func NewBadRequestError(message string) *ErrorResponse {
+	return &ErrorResponse{
+		Code:    http.StatusBadRequest,
+		Message: message,
+	}
+}
+
+func NewConflictError(message string) *ErrorResponse {
+	return &ErrorResponse{
+		Code:    http.StatusConflict,
+		Message: message,
+	}
+}
+
+func NewNotFoundError(message string) *ErrorResponse {
+	return &ErrorResponse{
+		Code:    http.StatusNotFound,
+		Message: message,
+	}
+}
 func NewErrorResponse(code int, message string) *ErrorResponse {
 	return &ErrorResponse{
 		Code:    code,

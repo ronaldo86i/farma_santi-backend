@@ -20,6 +20,7 @@ func (r RolService) DeshabilitarRol(ctx context.Context, id *int) error {
 }
 
 func (r RolService) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequest) error {
+
 	rolRequestUpdate.Nombre = strings.ToUpper(rolRequestUpdate.Nombre)
 	return r.rolRepository.ModificarRol(ctx, id, rolRequestUpdate)
 }
