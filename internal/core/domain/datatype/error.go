@@ -60,11 +60,11 @@ func NewNotFoundError(message string) *ErrorResponse {
 	}
 }
 
-func NewErrorResponse(code int, message string) *ErrorResponse {
-	return &ErrorResponse{
-		Code:    code,
-		Message: message,
-	}
-}
+//func NewErrorResponse(code int, message string) *ErrorResponse {
+//	return &ErrorResponse{
+//		Code:    code,
+//		Message: message,
+//	}
+//}
 
 var _ error = (*ErrorResponse)(nil)

@@ -16,7 +16,7 @@ func NewMessage(message string, messages ...string) map[string]interface{} {
 	}
 }
 
-// NewMessageData crea un mensaje concatenado y adjunta datos genéricos (solo structs).
+// NewMessageData crea un mensaje concatenado y asigna datos genéricos (solo structs).
 func NewMessageData[T any](data T, message string, messages ...string) map[string]interface{} {
 	var builder strings.Builder
 	builder.WriteString(message)

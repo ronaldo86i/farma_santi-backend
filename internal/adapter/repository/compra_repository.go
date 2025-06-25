@@ -287,7 +287,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		var precioPromedio float64
 		err = tx.QueryRow(ctx, query, productoId).Scan(&precioPromedio)
 		if err != nil {
-			log.Printf("Error al calcular precio promedio ponderado para producto %d: %v", productoId, err)
+			log.Printf("Error al calcular precio promedio ponderado para producto %s: %v", productoId, err)
 			return datatype.NewInternalServerErrorGeneric()
 		}
 

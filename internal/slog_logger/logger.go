@@ -15,11 +15,11 @@ type Logger struct {
 
 type Option func(*Logger)
 
-func WithInvalidLevelKey(key string) Option {
-	return func(l *Logger) {
-		l.invalidLevelKey = key
-	}
-}
+//func WithInvalidLevelKey(key string) Option {
+//	return func(l *Logger) {
+//		l.invalidLevelKey = key
+//	}
+//}
 
 func NewLogger(l *slog.Logger, options ...Option) *Logger {
 	logger := &Logger{

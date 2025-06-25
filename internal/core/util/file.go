@@ -31,50 +31,6 @@ func (file) MakeDir(ruta string) error {
 	return nil
 }
 
-// SaveFileImg guarda una imagen procesada en el destino especificado.
-// Esta función decodifica la imagen desde el contenido (io.Reader), la redimensiona y la guarda.
-//func (file) SaveFileImg(destino string, nombreArchivo string, contenido io.Reader) (string, error) {
-//	// Construir la ruta completa del archivo
-//	filePath := filepath.Join(destino, nombreArchivo)
-//
-//	// Verificar si el archivo ya existe
-//	if _, err := os.Stat(filePath); err == nil {
-//		//return "", fmt.Errorf("el archivo ya existe: %s", filePath)
-//	} else if !os.IsNotExist(err) {
-//		// Manejar otros errores de Stat (permisos, etc.)
-//		return "", fmt.Errorf("error verificando el archivo: %v", err)
-//	}
-//
-//	// Decodificar la imagen desde el contenido (io.Reader)
-//	src, _, err := image.Decode(contenido)
-//	if err != nil {
-//		return "", fmt.Errorf("error al decodificar la imagen: %v", err)
-//	}
-//
-//	// Procesar la imagen (redimensionar, agregar marca de agua, etc.)
-//	// Ejemplo: Redimensionar la imagen a un ancho de 900px
-//	resizedImg := imgconv.Resize(src, &imgconv.ResizeOption{Width: 900})
-//
-//	// Crear un archivo en el destino especificado
-//	dst, err := os.Create(filePath)
-//	if err != nil {
-//		return "", fmt.Errorf("error creando el archivo: %v", err)
-//	}
-//	defer func(dst *os.File) {
-//		if err := dst.Close(); err != nil {
-//			// Manejar error al cerrar el archivo (se puede registrar o manejar según necesidad)
-//			fmt.Printf("error cerrando el archivo: %v\n", err)
-//		}
-//	}(dst)
-//
-//	// Guardar la imagen procesada en el archivo
-//	if err := imgconv.Write(dst, resizedImg, &imgconv.FormatOption{Format: imgconv.JPEG}); err != nil {
-//		return "", fmt.Errorf("error guardando la imagen: %v", err)
-//	}
-//
-//	return nombreArchivo, nil
-//}
-
 // DeleteAllFiles elimina todos los archivos en un directorio específico.
 // Si hay un error al eliminar un archivo, retorna el error.
 func (file) DeleteAllFiles(dir string) error {
@@ -234,14 +190,20 @@ func (file) Copy(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("error abriendo archivo origen: %w", err)
 	}
-	defer source.Close()
+	defer func(source *os.File) {
+		_ = source.Close()
+
+	}(source)
 
 	// Crear el archivo destino
 	destination, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("error creando archivo destino: %w", err)
 	}
-	defer destination.Close()
+	defer func(destination *os.File) {
+		_ = destination.Close()
+
+	}(destination)
 
 	// Copiar contenido
 	_, err = io.Copy(destination, source)
@@ -298,7 +260,7 @@ func (file) ValidarTipoArchivo(fileName string, typesValid ...string) bool {
 	return false
 }
 
-// Verifica si el archivo existe en la ruta especificada
+// VerificarArchivoExistente Verifica si el archivo existe en la ruta especificada
 func VerificarArchivoExistente(route string) (os.FileInfo, error) {
 	fileInfo, err := os.Stat(route)
 	if err != nil {
@@ -318,7 +280,7 @@ func VerificarArchivoExistente(route string) (os.FileInfo, error) {
 	return fileInfo, nil
 }
 
-// Abre el archivo y devuelve un puntero al mismo
+// AbrirArchivo Abre el archivo y devuelve un puntero al mismo
 func AbrirArchivo(route string) (*os.File, error) {
 	file, err := os.Open(route)
 	if err != nil {
@@ -338,14 +300,14 @@ func AbrirArchivo(route string) (*os.File, error) {
 	return file, nil
 }
 
-// Cierra el archivo de forma segura
+// CerrarArchivo Cierra el archivo de forma segura
 func CerrarArchivo(file *os.File) {
 	if err := file.Close(); err != nil {
 		fmt.Println("Error al cerrar el archivo:", err)
 	}
 }
 
-// Obtiene el tipo de contenido del archivo
+// ObtenerTipoContenido Obtiene el tipo de contenido del archivo
 func ObtenerTipoContenido(file *os.File) (string, error) {
 	buffer := make([]byte, 512)
 	if _, err := file.Read(buffer); err != nil {
@@ -358,7 +320,7 @@ func ObtenerTipoContenido(file *os.File) (string, error) {
 	return http.DetectContentType(buffer), nil
 }
 
-// Envía el archivo completo si no se especificó un rango
+// EnviarArchivoCompleto Envía el archivo completo si no se especificó un rango
 func EnviarArchivoCompleto(c *fiber.Ctx, file *os.File, route string, fileSize int64, contentType string) error {
 	c.Set("Content-Type", contentType)
 	c.Set("Content-Disposition", "inline; filename=\""+filepath.Base(route)+"\"")
@@ -373,7 +335,7 @@ func EnviarArchivoCompleto(c *fiber.Ctx, file *os.File, route string, fileSize i
 	return nil
 }
 
-// Envía el archivo en el rango especificado
+// EnviarArchivoPorRango Envía el archivo en el rango especificado
 func EnviarArchivoPorRango(c *fiber.Ctx, file *os.File, fileSize int64, contentType, rangeHeader string) error {
 	var rangeStart, rangeEnd int64 = 0, fileSize - 1
 
