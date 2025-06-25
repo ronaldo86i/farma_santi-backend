@@ -8,14 +8,34 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"log"
-	"net/http"
 )
 
 type LoteProductoRepository struct {
 	db *database.DB
+}
+
+func (l LoteProductoRepository) ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error) {
+	query := `SELECT lp.id,lp.lote,lp.fecha_vencimiento FROM lote_producto lp WHERE lp.producto_id = $1`
+	rows, err := l.db.Pool.Query(ctx, query, productoId.String())
+	if err != nil {
+		return nil, datatype.NewInternalServerError("Error al obtener la lista")
+	}
+	defer rows.Close()
+	var list = make([]domain.LoteProductoSimple, 0)
+	for rows.Next() {
+		var item domain.LoteProductoSimple
+		err := rows.Scan(&item.Id, &item.Lote, &item.FechaVencimiento)
+		if err != nil {
+			log.Println(err.Error())
+			return nil, datatype.NewInternalServerErrorGeneric()
+		}
+		list = append(list, item)
+	}
+	return &list, nil
 }
 
 func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error {
@@ -29,7 +49,7 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)
 
-	query := `UPDATE lote_producto SET nro_lote=$1,fecha_vencimiento=$2,producto_id=$3 WHERE id = $4`
+	query := `UPDATE lote_producto SET lote=$1,fecha_vencimiento=$2,producto_id=$3 WHERE id = $4`
 	fechaVencimiento := request.FechaVencimiento.Format("2006-01-02")
 	// Insertamos el nuevo lote del producto
 	_, err = tx.Exec(ctx, query, request.Lote, fechaVencimiento, request.ProductoId.String(), *id)
@@ -64,20 +84,13 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 }
 
 func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
-	var query = `SELECT lp.id,lp.nro_lote,lp.stock,lp.fecha_vencimiento,
-       			json_build_object(
-       				'id', p.id,
-       				'nombreComercial',p.nombre_comercial
-       			) AS producto
-				FROM lote_producto lp
-				LEFT JOIN public.producto p on p.id = lp.producto_id ORDER BY lp.fecha_vencimiento,p.nombre_comercial
-				`
+	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM view_lotes_con_productos lp`
 	rows, err := l.db.Pool.Query(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, datatype.NewInternalServerError("Error al obtener la lista")
 	}
 	defer rows.Close()
-	var list []domain.LoteProductoInfo
+	var list = make([]domain.LoteProductoInfo, 0)
 	for rows.Next() {
 		var item domain.LoteProductoInfo
 		err := rows.Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
@@ -94,10 +107,6 @@ func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]do
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	if len(list) == 0 {
-		return &[]domain.LoteProductoInfo{}, nil
-	}
-
 	return &list, nil
 }
 
@@ -110,7 +119,7 @@ func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, reque
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)
 
-	query := `INSERT INTO lote_producto(nro_lote, fecha_vencimiento, producto_id) VALUES ($1, $2, $3)`
+	query := `INSERT INTO lote_producto(lote, fecha_vencimiento, producto_id) VALUES ($1, $2, $3)`
 	fechaVencimiento := request.FechaVencimiento.Format("2006-01-02")
 	// Insertamos el nuevo lote del producto
 	_, err = tx.Exec(ctx, query, request.Lote, fechaVencimiento, request.ProductoId.String())
@@ -146,37 +155,14 @@ func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, reque
 }
 
 func (l LoteProductoRepository) ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error) {
-	var query = `SELECT lp.id,lp.nro_lote,lp.stock,lp.fecha_vencimiento,
-       			json_build_object(
-       				'id', p.id,
-       				'nombreComercial',p.nombre_comercial,
-       				'concentracion',(p.concentracion || ' ' || um.abreviatura)::TEXT,
-       				'formaFarmaceutica',ff.nombre::TEXT,
-       				'laboratorio',l.nombre::TEXT,
-       				'precioVenta',p.precio_venta,
-       				'stock',p.stock,
-       				'stockMin',p.stock_min,
-       				'estado',p.estado,
-       				'deletedAt',p.deleted_at
-       			) AS producto
-				FROM lote_producto lp
-				LEFT JOIN public.producto p on p.id = lp.producto_id 
-				LEFT JOIN laboratorio l ON l.id = p.laboratorio_id
-                LEFT JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id
-                LEFT JOIN unidad_medida um ON um.id = p.unidad_medida_id
-				WHERE lp.id = $1
-				ORDER BY lp.fecha_vencimiento,p.nombre_comercial 
-				LIMIT 1`
+	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM obtener_lote_by_id($1) lp`
 
 	var item domain.LoteProductoDetail
-	err := l.db.Pool.QueryRow(ctx, query, id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
+	err := l.db.Pool.QueryRow(ctx, query, *id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "Lote de producto no encontrada",
-			}
+			return nil, datatype.NewNotFoundError("Lote de producto no encontrada")
 		}
 		// Error en la consulta a la Base de datos
 		return nil, datatype.NewInternalServerErrorGeneric()

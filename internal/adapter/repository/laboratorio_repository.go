@@ -10,7 +10,6 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"net/http"
 	"time"
 )
 
@@ -26,7 +25,7 @@ func (l LaboratorioRepository) ListarLaboratoriosDisponibles(ctx context.Context
 	}
 	defer rows.Close()
 
-	var list []domain.LaboratorioInfo
+	var list = make([]domain.LaboratorioInfo, 0)
 	for rows.Next() {
 		var lab domain.LaboratorioInfo
 		if err := rows.Scan(&lab.Id, &lab.Nombre, &lab.Estado, &lab.Direccion, &lab.CreatedAt, &lab.DeletedAt); err != nil {
@@ -37,9 +36,6 @@ func (l LaboratorioRepository) ListarLaboratoriosDisponibles(ctx context.Context
 
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
-	}
-	if len(list) == 0 {
-		return &[]domain.LaboratorioInfo{}, nil
 	}
 	return &list, nil
 }
@@ -52,7 +48,7 @@ func (l LaboratorioRepository) ListarLaboratorios(ctx context.Context) (*[]domai
 	}
 	defer rows.Close()
 
-	var list []domain.LaboratorioInfo
+	var list = make([]domain.LaboratorioInfo, 0)
 	for rows.Next() {
 		var lab domain.LaboratorioInfo
 		if err := rows.Scan(&lab.Id, &lab.Nombre, &lab.Estado, &lab.Direccion, &lab.CreatedAt, &lab.DeletedAt); err != nil {
@@ -64,9 +60,6 @@ func (l LaboratorioRepository) ListarLaboratorios(ctx context.Context) (*[]domai
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
-	if len(list) == 0 {
-		return &[]domain.LaboratorioInfo{}, nil
-	}
 	return &list, nil
 }
 
@@ -77,10 +70,7 @@ func (l LaboratorioRepository) ObtenerLaboratorioById(ctx context.Context, id *i
 	var laboratorio domain.LaboratorioDetail
 	if err := row.Scan(&laboratorio.Id, &laboratorio.Nombre, &laboratorio.Direccion, &laboratorio.Estado, &laboratorio.CreatedAt, &laboratorio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "Laboratorio no encontrado",
-			}
+			return nil, datatype.NewNotFoundError("Laboratorio no encontrado")
 		}
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -102,17 +92,22 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 
 	// Si se encontró un laboratorio con ese nombre y no está eliminado
 	if err == nil && deletedAt == nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "Ya existe el laboratorio",
-		}
+		return datatype.NewConflictError("Ya existe el laboratorio")
 	}
 
 	// Insertar el nuevo laboratorio
 	queryInsert := `INSERT INTO laboratorio(nombre, direccion, deleted_at) VALUES ($1, $2, NULL)`
-	_, err = l.db.Pool.Exec(ctx, queryInsert, laboratorioRequest.Nombre, laboratorioRequest.Direccion)
-
+	tx, err := l.db.Pool.Begin(ctx)
 	if err != nil {
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	defer func(tx pgx.Tx, ctx context.Context) {
+		_ = tx.Rollback(ctx)
+	}(tx, ctx)
+
+	_, err = tx.Exec(ctx, queryInsert, laboratorioRequest.Nombre, laboratorioRequest.Direccion)
+	// Confirmar la transacción
+	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
@@ -136,16 +131,10 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == "23505" {
 				// Error de restricción UNIQUE violada
-				return &datatype.ErrorResponse{
-					Code:    http.StatusConflict,
-					Message: "Ya existe el laboratorio",
-				}
+				return datatype.NewConflictError("Ya existe el laboratorio")
 			} else if pgErr.Code == "23503" {
 				// Error de clave foránea, si es que la 'id' del proveedor no existe
-				return &datatype.ErrorResponse{
-					Code:    http.StatusConflict,
-					Message: "No existe el laboratorio con ese 'id'",
-				}
+				return datatype.NewConflictError("No existe el laboratorio con ese 'id'")
 			}
 		}
 

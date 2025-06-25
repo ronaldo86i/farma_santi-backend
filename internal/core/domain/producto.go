@@ -46,6 +46,7 @@ type ProductoInfo struct {
 	NombreComercial   string     `json:"nombreComercial"`
 	FormaFarmaceutica string     `json:"formaFarmaceutica"`
 	Laboratorio       string     `json:"laboratorio"`
+	PrecioCompra      float64    `json:"precioCompra"`
 	PrecioVenta       float64    `json:"precioVenta"`
 	Stock             int64      `json:"stock"`
 	StockMin          int64      `json:"stockMin"`
@@ -72,6 +73,7 @@ type ProductoDetail struct {
 	Laboratorio       LaboratorioSimple         `json:"laboratorio"`
 	Categorias        []Categoria               `json:"categorias"`
 	PrincipiosActivos []ProductoPrincipioActivo `json:"principiosActivos"`
+	PrecioCompra      float64                   `json:"precioCompra"`
 	PrecioVenta       float64                   `json:"precioVenta"`
 	StockMin          int64                     `json:"stockMin"`
 	Stock             int64                     `json:"stock"`
@@ -84,4 +86,5 @@ type ProductoDetail struct {
 type ProductoSimple struct {
 	Id              uuid.UUID `json:"id"`
 	NombreComercial string    `json:"nombreComercial"`
+	Laboratorio     string    `json:"laboratorio,omitempty"`
 }

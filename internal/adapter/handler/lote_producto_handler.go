@@ -7,12 +7,33 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"log"
 	"net/http"
 )
 
 type LoteProductoHandler struct {
 	loteProductoService port.LoteProductoService
+}
+
+func (l LoteProductoHandler) ListarLotesProductosByProductoId(c *fiber.Ctx) error {
+	// Obtener id del producto del parámetro
+	productoIdParam := c.Params("productoId")
+	productoId, err := uuid.Parse(productoIdParam)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(util.NewMessage("Formato de id no válido"))
+	}
+
+	list, err := l.loteProductoService.ListarLotesProductosByProductoId(c.UserContext(), &productoId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	return c.Status(http.StatusOK).JSON(&list)
 }
 
 func (l LoteProductoHandler) ModificarLoteProducto(c *fiber.Ctx) error {

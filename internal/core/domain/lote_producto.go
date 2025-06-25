@@ -26,3 +26,9 @@ type LoteProductoDetail struct {
 	Stock            int          `json:"stock"`
 	Producto         ProductoInfo `json:"producto"`
 }
+
+type LoteProductoSimple struct {
+	Id               int       `json:"id"`
+	Lote             string    `json:"lote"`
+	FechaVencimiento time.Time `json:"fechaVencimiento"`
+}

@@ -15,7 +15,6 @@ import (
 	"github.com/lib/pq"
 	"log"
 	"mime/multipart"
-	"net/http"
 	"path/filepath"
 )
 
@@ -26,16 +25,13 @@ type ProductoRepository struct {
 func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UUID) (*domain.ProductoDetail, error) {
 	fullHostname := ctx.Value("fullHostname").(string)
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
-	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock_min,p.stock,p.fotos,p.created_at,p.deleted_at,p.estado,p.categorias,p.principio_activos FROM obtener_producto_detalle_by_id($1,$2) p;`
+	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock_min,p.stock,p.fotos,p.created_at,p.deleted_at,p.estado,p.categorias,p.principio_activos,p.precio_compra FROM obtener_producto_detalle_by_id($1,$2) p;`
 	var item domain.ProductoDetail
 	err := p.db.Pool.QueryRow(ctx, query, id.String(), fullHostname).Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica,
-		&item.Laboratorio, &item.PrecioVenta, &item.StockMin, &item.Stock, &item.UrlFotos, &item.CreatedAt, &item.DeletedAt, &item.Estado, &item.Categorias, &item.PrincipiosActivos)
+		&item.Laboratorio, &item.PrecioVenta, &item.StockMin, &item.Stock, &item.UrlFotos, &item.CreatedAt, &item.DeletedAt, &item.Estado, &item.Categorias, &item.PrincipiosActivos, &item.PrecioCompra)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "Producto no encontrado",
-			}
+			return nil, datatype.NewNotFoundError("Producto no encontrado")
 		}
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -96,10 +92,7 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 		_ = tx.Rollback(ctx)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return &datatype.ErrorResponse{
-				Code:    http.StatusConflict,
-				Message: "Ya existe ese producto",
-			}
+			return datatype.NewConflictError("Ya existe ese producto")
 		}
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -128,10 +121,7 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 		err = util.File.SaveFile(route, nameFile, file)
 		if err != nil {
 			_ = util.File.DeleteAllFiles(route)
-			return &datatype.ErrorResponse{
-				Code:    http.StatusInternalServerError,
-				Message: "Error al guardar fotos",
-			}
+			return datatype.NewInternalServerError("Error al guardar fotos")
 		}
 		_ = file.Close()
 		fotos = append(fotos, nameFile)
@@ -190,7 +180,7 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 		log.Println(err)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return &datatype.ErrorResponse{Code: http.StatusConflict, Message: "Ya existe ese producto"}
+			return datatype.NewConflictError("Ya existe ese producto")
 		}
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -224,7 +214,7 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 		if saveErr != nil {
 			util.File.DeleteFiles(route, nuevosArchivos)
 			_ = util.File.RestoreFiles(backupFiles, route)
-			return &datatype.ErrorResponse{Code: http.StatusInternalServerError, Message: "Error al guardar fotos"}
+			return datatype.NewInternalServerError("Error al guardar fotos")
 		}
 		nuevosArchivos = append(nuevosArchivos, nameFile)
 	}
@@ -262,7 +252,7 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 
 func (p ProductoRepository) ListarUnidadesMedida(ctx context.Context) (*[]domain.UnidadMedida, error) {
 	query := `SELECT um.id,um.nombre,um.abreviatura FROM unidad_medida um ORDER BY um.nombre`
-	var list []domain.UnidadMedida
+	var list = make([]domain.UnidadMedida, 0)
 
 	rows, err := p.db.Pool.Query(ctx, query)
 	if err != nil {
@@ -281,15 +271,12 @@ func (p ProductoRepository) ListarUnidadesMedida(ctx context.Context) (*[]domain
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	if len(list) == 0 {
-		return &[]domain.UnidadMedida{}, nil
-	}
 	return &list, nil
 }
 
 func (p ProductoRepository) ListarFormasFarmaceuticas(ctx context.Context) (*[]domain.FormaFarmaceutica, error) {
 	query := `SELECT ff.id,ff.nombre FROM forma_farmaceutica ff ORDER BY ff.nombre`
-	var list []domain.FormaFarmaceutica
+	var list = make([]domain.FormaFarmaceutica, 0)
 
 	rows, err := p.db.Pool.Query(ctx, query)
 	if err != nil {
@@ -308,9 +295,6 @@ func (p ProductoRepository) ListarFormasFarmaceuticas(ctx context.Context) (*[]d
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	if len(list) == 0 {
-		return &[]domain.FormaFarmaceutica{}, nil
-	}
 	return &list, nil
 }
 
@@ -318,7 +302,7 @@ func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.Prod
 	fullHostname := ctx.Value("fullHostname").(string)
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
 
-	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock,p.stock_min,p.url_foto,p.estado,p.deleted_at FROM listar_productos_info($1) p`
+	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock,p.stock_min,p.url_foto,p.estado,p.deleted_at,p.precio_compra FROM listar_productos_info($1) p`
 	rows, err := p.db.Pool.Query(ctx, query, fullHostname)
 	if err != nil {
 		log.Println(err)
@@ -326,10 +310,10 @@ func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.Prod
 	}
 	defer rows.Close()
 
-	var list []domain.ProductoInfo
+	var list = make([]domain.ProductoInfo, 0)
 	for rows.Next() {
 		var item domain.ProductoInfo
-		err := rows.Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica, &item.Laboratorio, &item.PrecioVenta, &item.Stock, &item.StockMin, &item.UrlFoto, &item.Estado, &item.DeletedAt)
+		err := rows.Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica, &item.Laboratorio, &item.PrecioVenta, &item.Stock, &item.StockMin, &item.UrlFoto, &item.Estado, &item.DeletedAt, &item.PrecioCompra)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
@@ -340,9 +324,6 @@ func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.Prod
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	if len(list) == 0 {
-		return &[]domain.ProductoInfo{}, nil
-	}
 	return &list, nil
 }
 

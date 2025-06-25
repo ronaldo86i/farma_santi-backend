@@ -9,7 +9,6 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"net/http"
 )
 
 type PrincipioActivoRepository struct {
@@ -52,20 +51,14 @@ func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context,
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == "23505" {
 				// Error de restricción UNIQUE violada
-				return &datatype.ErrorResponse{
-					Code:    http.StatusConflict,
-					Message: "El principio activo ya existe",
-				}
+				return datatype.NewConflictError("El principio activo ya existe")
 			}
 		}
 		return err
 	}
 
 	if result.RowsAffected() == 0 {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "No existe el principio activo",
-		}
+		return datatype.NewNotFoundError("No existe el principio activo")
 	}
 	return nil
 }
@@ -78,7 +71,7 @@ func (p PrincipioActivoRepository) ListarPrincipioActivo(ctx context.Context) (*
 	}
 	defer rows.Close()
 
-	var lista []domain.PrincipioActivoInfo
+	var lista = make([]domain.PrincipioActivoInfo, 0)
 	for rows.Next() {
 		var pa domain.PrincipioActivoInfo
 		if err := rows.Scan(&pa.Id, &pa.Nombre, &pa.Descripcion); err != nil {
@@ -89,10 +82,6 @@ func (p PrincipioActivoRepository) ListarPrincipioActivo(ctx context.Context) (*
 
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
-	}
-
-	if len(lista) == 0 {
-		return &[]domain.PrincipioActivoInfo{}, nil
 	}
 
 	return &lista, nil

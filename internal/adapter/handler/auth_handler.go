@@ -29,19 +29,24 @@ func (a *AuthHandler) RefreshOrVerify(c *fiber.Ctx) error {
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
-
+	userId, ok := claimsRefreshToken["userId"].(float64)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
+	}
 	now := time.Now().UTC()
 	expAccess, expRefresh := now.Add(1*time.Hour), now.Add(7*24*time.Hour)
 	// Generar token
 	accessToken, err := util.Token.CreateToken(jwt.MapClaims{
-		"username":   &username,
+		"userId":     userId,
+		"username":   username,
 		"expiration": expAccess.Unix(),
 		"type":       "access-token-adm",
 	})
 
 	// Generar token
 	refreshToken, err := util.Token.CreateToken(jwt.MapClaims{
-		"username":   &username,
+		"userId":     userId,
+		"username":   username,
 		"expiration": expRefresh.Unix(),
 		"type":       "refresh-token-adm",
 	})

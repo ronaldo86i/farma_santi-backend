@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"log"
-	"net/http"
 )
 
 type ProveedorRepository struct {
@@ -76,10 +75,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	// Verificar si la consulta encontró alguna fila
 	rowsAffected := res.RowsAffected()
 	if rowsAffected > 0 {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "Ya existe el proveedor",
-		}
+		return datatype.NewConflictError("Ya existe el proveedor")
 	}
 
 	// Iniciar la transacción
@@ -122,10 +118,7 @@ func (p ProveedorRepository) ObtenerProveedorById(ctx context.Context, id *int) 
 	if err != nil {
 		log.Print(err)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "No existe el proveedor",
-			}
+			return nil, datatype.NewNotFoundError("No existe el proveedor")
 		}
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -134,7 +127,6 @@ func (p ProveedorRepository) ObtenerProveedorById(ctx context.Context, id *int) 
 }
 
 func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.ProveedorInfo, error) {
-	var proveedores []domain.ProveedorInfo
 	query := `SELECT p.id, p.estado,p.nit, p.razon_social, p.representante, p.direccion, p.created_at, p.deleted_at FROM proveedor p`
 	rows, err := p.db.Pool.Query(ctx, query)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -142,6 +134,7 @@ func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.P
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
+	var proveedores = make([]domain.ProveedorInfo, 0)
 	for rows.Next() {
 		var proveedor domain.ProveedorInfo
 		err = rows.Scan(&proveedor.Id, &proveedor.Estado, &proveedor.NIT, &proveedor.RazonSocial, &proveedor.Representante, &proveedor.Direccion, &proveedor.CreatedAt, &proveedor.DeletedAt)
@@ -149,9 +142,6 @@ func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.P
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		proveedores = append(proveedores, proveedor)
-	}
-	if len(proveedores) == 0 {
-		return &[]domain.ProveedorInfo{}, nil
 	}
 	return &proveedores, nil
 }
@@ -179,16 +169,10 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 		if errors.As(err, &pgErr) {
 			if pgErr.Code == "23505" {
 				// Error de restricción UNIQUE violada
-				return &datatype.ErrorResponse{
-					Code:    http.StatusConflict,
-					Message: "Ya existe un proveedor con ese NIT",
-				}
+				return datatype.NewConflictError("Ya existe un proveedor con ese NIT")
 			} else if pgErr.Code == "23503" {
 				// Error de clave foránea, si es que la 'id' del proveedor no existe
-				return &datatype.ErrorResponse{
-					Code:    http.StatusConflict,
-					Message: "No existe el proveedor con ese ID",
-				}
+				return datatype.NewNotFoundError("No existe el proveedor con ese ID")
 			}
 		}
 

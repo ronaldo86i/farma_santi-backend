@@ -25,6 +25,11 @@ type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
+type UsuarioSimple struct {
+	Id       uint   `json:"id"`
+	Username string `json:"username"`
+	Estado   string `json:"estado,omitempty"`
+}
 
 // UsuarioInfo se usa para mostrar la información detallada de un usuario.
 // Incluye su id, nombre de usuario, contraseña (opcional), y su información personal.

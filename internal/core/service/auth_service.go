@@ -6,10 +6,8 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
-	"net/http"
 	"time"
 )
 
@@ -24,14 +22,12 @@ func (a AuthService) ObtenerTokenByCredencial(ctx context.Context, credentials *
 	}
 	// Comparar contraseña hashed y contraseña ingresada
 	if err := bcrypt.CompareHashAndPassword([]byte(usuario.Password), []byte(credentials.Password)); err != nil {
-		return nil, &datatype.ErrorResponse{
-			Code:    fiber.StatusUnauthorized,
-			Message: "Usuario o contraseña incorrecta",
-		}
+		return nil, datatype.NewStatusUnauthorizedError("Usuario o contraseña incorrecta")
 	}
 	expAccess, expRefresh := time.Now().UTC().Add(1*time.Hour), time.Now().UTC().Add(7*24*time.Hour)
 	// Generar token
 	accessToken, err := util.Token.CreateToken(jwt.MapClaims{
+		"userId":     &usuario.Id,
 		"username":   &credentials.Username,
 		"expiration": expAccess.Unix(),
 		"type":       "access-token-adm",
@@ -39,16 +35,14 @@ func (a AuthService) ObtenerTokenByCredencial(ctx context.Context, credentials *
 
 	// Generar token
 	refreshToken, err := util.Token.CreateToken(jwt.MapClaims{
+		"userId":     &usuario.Id,
 		"username":   &credentials.Username,
 		"expiration": expRefresh.Unix(),
 		"type":       "refresh-token-adm",
 	})
 
 	if err != nil {
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusUnauthorized,
-			Message: "Usuario o contraseña incorrecta",
-		}
+		return nil, datatype.NewStatusUnauthorizedError("Usuario o contraseña incorrecta")
 	}
 
 	return &domain.TokenResponse{

@@ -21,6 +21,17 @@ var limite = limiter.New(limiter.Config{
 	},
 })
 
+func limited(max int, expiration, delay time.Duration) fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        max,
+		Expiration: expiration,
+		LimitReached: func(c *fiber.Ctx) error {
+			time.Sleep(delay)
+			return c.Next()
+		},
+	})
+
+}
 func (s *Server) initEndPoints(app *fiber.App) {
 	app.Static("/", "./public", fiber.Static{
 		ModifyResponse: util.EnviarArchivo,
@@ -43,9 +54,9 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1UsuariosMe := v1Usuarios.Group("/me")
 	v1LotesProductos := v1.Group("/lotes-productos")
 	v1PrincipiosActivos := v1.Group("/principios-activos")
-
+	v1Compras := v1.Group("/compras")
 	// path: /api/v1/usuarios/me
-	v1UsuariosMe.Get("", limite, s.usuarioHandler.ObtenerUsuarioActual)
+	v1UsuariosMe.Get("", limited(20, 5*time.Minute, 5*time.Second), s.usuarioHandler.ObtenerUsuarioActual)
 
 	// Middleware para endpoint
 	v1Productos.Use(middleware.HostnameMiddleware, middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
@@ -57,11 +68,13 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Laboratorios.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1LotesProductos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1PrincipiosActivos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1Compras.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+
 	// path: /api/v1/auth
-	v1Auth.Post("/login", limite, s.authHandler.Login)
-	v1Auth.Get("/logout", limite, s.authHandler.Logout)
-	v1Auth.Get("/refresh", limite, s.authHandler.RefreshOrVerify)
-	v1Auth.Get("/verify", limite, s.authHandler.RefreshOrVerify)
+	v1Auth.Post("/login", limited(5, 5*time.Minute, 5*time.Minute), s.authHandler.Login)
+	v1Auth.Get("/logout", limited(30, 5*time.Minute, 5*time.Second), s.authHandler.Logout)
+	v1Auth.Get("/refresh", limited(50, 5*time.Minute, 5*time.Second), s.authHandler.RefreshOrVerify)
+	v1Auth.Get("/verify", limited(50, 5*time.Minute, 5*time.Second), s.authHandler.RefreshOrVerify)
 
 	// path: /api/v1/roles
 	v1Roles.Get("", limite, s.rolHandler.ListarRoles)
@@ -118,6 +131,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 
 	//path: /api/v1/lotes-productos
 	v1LotesProductos.Get("", limite, s.loteProductoHandler.ListarLotesProductos)
+	v1LotesProductos.Get("/byProducto/:productoId", limite, s.loteProductoHandler.ListarLotesProductosByProductoId)
 	v1LotesProductos.Get("/:loteProductoId", limite, s.loteProductoHandler.ObtenerLoteProductoById)
 	v1LotesProductos.Post("", limite, s.loteProductoHandler.RegistrarLoteProducto)
 	v1LotesProductos.Put("/:loteProductoId", limite, s.loteProductoHandler.ModificarLoteProducto)
@@ -127,4 +141,12 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1PrincipiosActivos.Put("/:principioActivoId", limite, s.principioActivoHandler.ModificarPrincipioActivo)
 	v1PrincipiosActivos.Get("", limite, s.principioActivoHandler.ListarPrincipioActivo)
 	v1PrincipiosActivos.Get("/:principioActivoId", limite, s.principioActivoHandler.ObtenerPrincipioActivoById)
+
+	//path: /api/v1/compras
+	v1Compras.Get("", limite, s.compraHandler.ObtenerListaCompras)
+	v1Compras.Get("/:compraId", limite, s.compraHandler.ObtenerCompraById)
+	v1Compras.Post("", limite, s.compraHandler.RegistrarOrdenCompra)
+	v1Compras.Patch("/completar/:compraId", limite, s.compraHandler.RegistrarCompra)
+	v1Compras.Put("/:compraId", limite, s.compraHandler.ModificarOrdenCompra)
+	v1Compras.Patch("/anular/:compraId", limite, s.compraHandler.AnularOrdenCompra)
 }

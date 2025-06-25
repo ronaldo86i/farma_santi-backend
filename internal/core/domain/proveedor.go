@@ -3,14 +3,14 @@ package domain
 import "time"
 
 type Proveedor struct {
-	Id            int32      `json:"id"`
-	NIT           int32      `json:"nit"`
+	Id            int        `json:"id"`
+	NIT           int64      `json:"nit"`
 	RazonSocial   string     `json:"razonSocial"`
 	Representante string     `json:"representante"`
 	Direccion     *string    `json:"direccion,omitempty"`
-	Telefono      *int32     `json:"telefono,omitzero"`
+	Telefono      *int       `json:"telefono,omitzero"`
 	Email         *string    `json:"email,omitempty"`
-	Celular       *int32     `json:"celular,omitzero"`
+	Celular       *int       `json:"celular,omitzero"`
 	Estado        string     `json:"estado"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	DeletedAt     *time.Time `json:"deletedAt"`
@@ -20,18 +20,23 @@ type ProveedorDetail struct {
 }
 
 type ProveedorRequest struct {
-	NIT           int32   `json:"nit"`
+	NIT           int64   `json:"nit"`
 	RazonSocial   string  `json:"razonSocial"`
 	Representante string  `json:"representante"`
 	Direccion     *string `json:"direccion,omitempty"`
-	Telefono      *int32  `json:"telefono,omitzero"`
+	Telefono      *int    `json:"telefono,omitzero"`
 	Email         *string `json:"email,omitempty"`
-	Celular       *int32  `json:"celular,omitzero"`
+	Celular       *int    `json:"celular,omitzero"`
 }
 
+type ProveedorSimple struct {
+	Id          int    `json:"id"`
+	NIT         int64  `json:"nit"`
+	RazonSocial string `json:"razonSocial"`
+}
 type ProveedorInfo struct {
-	Id            int32      `json:"id"`
-	NIT           int32      `json:"nit"`
+	Id            int        `json:"id"`
+	NIT           int64      `json:"nit"`
 	RazonSocial   string     `json:"razonSocial"`
 	Representante string     `json:"representante"`
 	Direccion     *string    `json:"direccion,omitempty"`

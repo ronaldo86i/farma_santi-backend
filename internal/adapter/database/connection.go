@@ -44,8 +44,7 @@ func Connection() error {
 	// Configuración del logger con formato y nivel de log
 	logger := slog.New(
 		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level:     slog.LevelDebug,
-			AddSource: true,
+			Level: slog.LevelDebug,
 		}),
 	)
 
@@ -56,8 +55,8 @@ func Connection() error {
 	}
 
 	// Configuraciones opcionales del pool
-	config.MaxConns = 10
-	config.MinConns = 2
+	config.MaxConns = 30
+	config.MinConns = 5
 	config.MaxConnLifetime = time.Hour
 	config.HealthCheckPeriod = time.Minute
 
@@ -75,6 +74,11 @@ func Connection() error {
 
 	DBInstance.Pool = pool
 
-	logger.Info("✅ Conexión exitosa a Postgres.")
+	logger.Info("Inicializando base de datos",
+		slog.String("host", host),
+		slog.String("usuario", user),
+		slog.String("base de datos", dbname),
+	)
+
 	return nil
 }

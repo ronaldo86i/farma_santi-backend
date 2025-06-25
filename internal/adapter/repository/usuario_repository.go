@@ -9,13 +9,11 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/sethvargo/go-password/password"
 	"log"
-	"net/http"
 )
 
 type UsuarioRepository struct {
@@ -110,16 +108,11 @@ func (u UsuarioRepository) ObtenerUsuarioDetalleByUsername(ctx context.Context, 
 	err := u.db.Pool.QueryRow(ctx, queryUsuarioDetalle, *username).
 		Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona, &usuarioDetalle.Roles)
 	if err != nil {
+		log.Println(err.Error())
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "No se encontró un usuario con el id proporcionado.",
-			}
+			return nil, datatype.NewNotFoundError("Usuario no encontrado")
 		}
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al obtener los detalles del usuario desde la base de datos: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	return &usuarioDetalle, nil
@@ -127,12 +120,7 @@ func (u UsuarioRepository) ObtenerUsuarioDetalleByUsername(ctx context.Context, 
 
 func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.UsuarioInfo, error) {
 	query := `
-	SELECT f.id, f.username,f.estado,f.created_at, f.updated_at, f.deleted_at, f.persona
-	FROM obtener_lista_usuarios() f 
-	ORDER BY f.id;
-	`
-
-	var usuarios []domain.UsuarioInfo
+	SELECT f.id, f.username,f.estado,f.created_at, f.updated_at, f.deleted_at, f.persona FROM view_lista_usuarios f ORDER BY f.id;`
 
 	rows, err := u.db.Pool.Query(ctx, query)
 	if err != nil {
@@ -140,7 +128,7 @@ func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.Usuari
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
-
+	var usuarios = make([]domain.UsuarioInfo, 0)
 	for rows.Next() {
 		var usuarioDetalle domain.UsuarioInfo
 		err := rows.Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona)
@@ -155,9 +143,7 @@ func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.Usuari
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
-	if len(usuarios) == 0 {
-		return &[]domain.UsuarioInfo{}, nil
-	}
+
 	return &usuarios, nil
 }
 
@@ -184,16 +170,9 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	_, err = tx.Exec(ctx, updateUsuarioQuery, usuarioRequest.Username, *usuarioId)
 	if err != nil {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			msg := fmt.Sprintf("El %s ya está registrado", "usuario")
-			return &datatype.ErrorResponse{
-				Code:    http.StatusConflict,
-				Message: msg,
-			}
+			return datatype.NewConflictError("El usuario ya está registrado")
 		}
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al actualizar usuario: " + err.Error(),
-		}
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	updatePersonaQuery := `UPDATE persona SET nombres = $1, apellido_paterno = $2, apellido_materno = $3, ci = $4, complemento = $5, genero = $6 WHERE id = $7`
@@ -208,26 +187,16 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	)
 	if err != nil {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			msg := fmt.Sprintf("El %s ya está registrado", "ci")
-			return &datatype.ErrorResponse{
-				Code:    http.StatusConflict,
-				Message: msg,
-			}
+			return datatype.NewConflictError("El CI ya se encuentra registrado")
 		}
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al actualizar persona: " + err.Error(),
-		}
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Eliminar roles actuales
 	deleteRolesQuery := `DELETE FROM usuario_rol WHERE usuario_id = $1`
 	_, err = tx.Exec(ctx, deleteRolesQuery, *usuarioId)
 	if err != nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al eliminar roles anteriores: " + err.Error(),
-		}
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Insertar nuevos roles
@@ -238,23 +207,14 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
-			return &datatype.ErrorResponse{
-				Code:    http.StatusBadRequest,
-				Message: "Algunos roles no existen",
-			}
+			return datatype.NewBadRequestError("Algunos roles no existen")
 		}
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al insertar los roles: " + err.Error(),
-		}
+		return datatype.NewInternalServerError("Error al registrar roles")
 	}
 
 	// Confirmar la transacción
 	if err = tx.Commit(ctx); err != nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al confirmar la transacción: " + err.Error(),
-		}
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	return nil
@@ -268,11 +228,9 @@ func (u UsuarioRepository) ObtenerUsuarioDetalle(ctx context.Context, usuarioId 
 		Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona, &usuarioDetalle.Roles)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "No se encontró un usuario con el id proporcionado.",
-			}
+			return nil, datatype.NewNotFoundError("No se encontró un usuario con el id proporcionado.")
 		}
+
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
@@ -291,10 +249,7 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 	// Comienza la transacción
 	tx, err := u.db.Pool.Begin(ctx)
 	if err != nil {
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al iniciar la transacción: " + err.Error(),
-		}
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	defer func() {
@@ -311,16 +266,10 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		var pgErr *pgconn.PgError
 		// Verifica si el error es una violación de restricción única (código de error 23505)
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusConflict, // Código HTTP 409: Conflicto
-				Message: "La persona ya está registrada",
-			}
+			return nil, datatype.NewConflictError("La persona ya está registrada")
 		}
 
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al insertar la persona: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerError("Error al registrar persona")
 	}
 
 	// Insertar el usuario en la tabla `usuario`, relacionado con la persona
@@ -333,16 +282,10 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		var pgErr *pgconn.PgError
 		// Verifica si el error es una violación de restricción única (código de error 23505)
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusConflict, // Código HTTP 409: Conflicto
-				Message: "El nombre de usuario ya está registrado",
-			}
+			return nil, datatype.NewConflictError("El nombre de usuario ya está registrado")
 		}
 		// Maneja otros tipos de errores
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al insertar el usuario: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerError("Error al registrar usuario")
 	}
 
 	// Insertar el usuario en la tabla `usuario`, relacionado con la persona
@@ -352,16 +295,10 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		// Manejo de error de roles
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusBadRequest,
-				Message: "Algunos roles no existen",
-			}
+			return nil, datatype.NewBadRequestError("Algunos roles no existen")
 		}
 		// Otro tipo de error imprevisto
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al insertar los roles: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerError("Error al registrar roles")
 	}
 
 	queryUsuarioDetalle := `SELECT oud.id, oud.username, oud.persona, oud.roles,oud.created_at,oud.updated_at,oud.deleted_at FROM obtener_usuario_detalle_by_id($1) oud;`
@@ -369,18 +306,12 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 	err = tx.QueryRow(ctx, queryUsuarioDetalle, usuarioId).Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Persona, &usuarioDetalle.Roles, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt)
 	if err != nil {
 		// Tipo de error imprevisto
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al convertir a json: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	// Confirmar transacción
 	err = tx.Commit(ctx)
 	if err != nil {
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al confirmar la transacción: " + err.Error(),
-		}
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	usuarioDetalle.Password = passwordGenerated
 	// Devolver los detalles del usuario creado
@@ -391,14 +322,11 @@ func (u UsuarioRepository) ObtenerUsuario(ctx context.Context, username *string)
 	query := `SELECT u.id, u.username, u.password, u.deleted_at FROM usuario u WHERE u.username = $1 LIMIT 1`
 
 	var usuario domain.Usuario
-	err := u.db.Pool.QueryRow(ctx, query, username).Scan(&usuario.Id, &usuario.Username, &usuario.Password, &usuario.DeletedAt)
+	err := u.db.Pool.QueryRow(ctx, query, *username).Scan(&usuario.Id, &usuario.Username, &usuario.Password, &usuario.DeletedAt)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusUnauthorized,
-				Message: "Usuario o contraseña incorrectos",
-			}
+			return nil, datatype.NewStatusUnauthorizedError("Usuario o contraseña incorrecta")
 		}
 		// Error en la consulta a la Base de datos
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -407,10 +335,7 @@ func (u UsuarioRepository) ObtenerUsuario(ctx context.Context, username *string)
 	// Si el usuario está eliminado
 	if usuario.DeletedAt != nil {
 		// Usuario inactivo
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusUnauthorized,
-			Message: "Usuario o contraseña incorrectos",
-		}
+		return nil, datatype.NewStatusUnauthorizedError("Usuario o contraseña incorrecta")
 	}
 
 	return &usuario, nil

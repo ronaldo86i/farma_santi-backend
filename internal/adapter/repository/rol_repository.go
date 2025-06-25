@@ -10,7 +10,7 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"net/http"
+	"log"
 	"time"
 )
 
@@ -73,10 +73,7 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al iniciar la transacción: " + err.Error(),
-		}
+		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	defer func(tx pgx.Tx, ctx context.Context) {
@@ -89,10 +86,7 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 		// Si el nombre ya existe (violación de restricción única)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return &datatype.ErrorResponse{
-				Code:    http.StatusConflict,
-				Message: "Ya existe un rol con ese nombre",
-			}
+			return datatype.NewConflictError("Ya existe el rol")
 		}
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -117,28 +111,15 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 
 	// Si el rol existe y no está eliminado
 	if err == nil && deletedAt == nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "Ya existe el rol",
-		}
+		return datatype.NewConflictError("Ya existe el rol")
 	}
 
 	queryInsert := `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id, nombre, created_at, deleted_at;`
-
 	tx, err := r.db.Pool.Begin(ctx)
 	if err != nil {
-		return &datatype.ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Error al iniciar transacción: " + err.Error(),
-		}
+		log.Print("Error al iniciar transacción:", err)
+		return datatype.NewInternalServerErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		err := tx.Rollback(ctx)
-		if err != nil {
-			// No hacemos nada si Rollback falla
-		}
-	}(tx, ctx)
-
 	rol := domain.Rol{
 		Nombre:    rolRequest.Nombre,
 		DeletedAt: nil,
@@ -149,10 +130,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 		// Manejo de error por nombre duplicado (conflicto)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return &datatype.ErrorResponse{
-				Code:    http.StatusConflict,
-				Message: "Ya existe ese rol",
-			}
+			return datatype.NewConflictError("Ya existe el rol")
 		}
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -172,7 +150,7 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	}
 	defer rows.Close()
 
-	var roles []domain.Rol
+	var roles = make([]domain.Rol, 0)
 	for rows.Next() {
 		var rol domain.Rol
 		if err := rows.Scan(&rol.Id, &rol.Nombre, &rol.Estado, &rol.CreatedAt, &rol.DeletedAt); err != nil {
@@ -184,9 +162,6 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
-	if len(roles) == 0 {
-		return &[]domain.Rol{}, nil
-	}
 	return &roles, nil
 }
 
@@ -197,10 +172,7 @@ func (r RolRepository) ObtenerRolById(ctx context.Context, id *int) (*domain.Rol
 	var rol domain.Rol
 	if err := row.Scan(&rol.Id, &rol.Nombre, &rol.CreatedAt, &rol.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &datatype.ErrorResponse{
-				Code:    http.StatusNotFound,
-				Message: "Rol no encontrado",
-			}
+			return nil, datatype.NewNotFoundError("Rol no encontrado")
 		}
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}

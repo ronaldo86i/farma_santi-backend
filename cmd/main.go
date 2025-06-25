@@ -21,6 +21,7 @@ func main() {
 	productoRepository := repository.NewProductoRepository(db)
 	loteProductoRepository := repository.NewLoteProductoRepository(db)
 	principioActivoRepository := repository.NewPrincipioActivoRepository(db)
+	compraRepository := repository.NewCompraRepository(db)
 	// Inicializar servicios
 	authService := service.NewAuthService(usuarioRepository)
 	rolService := service.NewRolService(rolRepository)
@@ -31,6 +32,7 @@ func main() {
 	productoService := service.NewProductoService(productoRepository)
 	loteProductoService := service.NewLoteProductoService(loteProductoRepository)
 	principioActivoService := service.NewPrincipioActivoService(principioActivoRepository)
+	compraService := service.NewCompraService(compraRepository)
 	// Inicializar manejadores/controladores/handlers
 	authHandler := handler.NewAuthHandler(authService)
 	rolHandler := handler.NewRolHandler(rolService)
@@ -41,6 +43,7 @@ func main() {
 	productoHandler := handler.NewProductoHandler(productoService)
 	loteProductoHandler := handler.NewLoteProductoHandler(loteProductoService)
 	principioActivoHandler := handler.NewPrincipioActivoHandler(principioActivoService)
+	compraHandler := handler.NewCompraHandler(compraService)
 	// Inicializar el servidor HTTP
 	httpServer := server.NewServer(
 		authHandler,
@@ -52,6 +55,7 @@ func main() {
 		productoHandler,
 		loteProductoHandler,
 		principioActivoHandler,
+		compraHandler,
 	)
 
 	// Iniciar el servidor

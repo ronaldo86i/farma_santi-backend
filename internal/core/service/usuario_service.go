@@ -6,7 +6,6 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"net/http"
 	"time"
 )
 
@@ -33,10 +32,7 @@ func (u UsuarioService) ObtenerUsuarioDetalleByToken(ctx context.Context, token 
 	}
 	username, ok := claims["username"].(string)
 	if !ok {
-		return nil, &datatype.ErrorResponse{
-			Code:    http.StatusNotFound,
-			Message: "Usuario no encontrado",
-		}
+		return nil, datatype.NewNotFoundError("Usuario no encontrado")
 	}
 	return u.usuarioRepository.ObtenerUsuarioDetalleByUsername(ctx, &username)
 }

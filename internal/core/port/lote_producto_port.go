@@ -4,6 +4,7 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type LoteProductoRepository interface {
@@ -11,6 +12,7 @@ type LoteProductoRepository interface {
 	RegistrarLoteProducto(ctx context.Context, request *domain.LoteProductoRequest) error
 	ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error
 	ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error)
+	ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error)
 }
 
 type LoteProductoService interface {
@@ -18,6 +20,7 @@ type LoteProductoService interface {
 	RegistrarLoteProducto(ctx context.Context, request *domain.LoteProductoRequest) error
 	ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error
 	ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error)
+	ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error)
 }
 
 type LoteProductoHandler interface {
@@ -25,4 +28,5 @@ type LoteProductoHandler interface {
 	RegistrarLoteProducto(c *fiber.Ctx) error
 	ModificarLoteProducto(c *fiber.Ctx) error
 	ObtenerLoteProductoById(c *fiber.Ctx) error
+	ListarLotesProductosByProductoId(c *fiber.Ctx) error
 }

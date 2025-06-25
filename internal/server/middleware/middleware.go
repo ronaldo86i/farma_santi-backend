@@ -13,9 +13,6 @@ import (
 	"net/http"
 )
 
-const fullHostnameKey = "fullHostname"
-const usernameKey = "username"
-
 var db = &database.DBInstance
 
 // HostnameMiddleware guarda y registra el hostname completo de la petición
@@ -23,7 +20,7 @@ func HostnameMiddleware(c *fiber.Ctx) error {
 	fullHostname := fmt.Sprintf("%s://%s", c.Protocol(), c.Hostname())
 	log.Printf("Petición recibida desde host: %s", fullHostname)
 	// Guardar fullHostname en context
-	ctx := context.WithValue(c.UserContext(), fullHostnameKey, fullHostname)
+	ctx := context.WithValue(c.UserContext(), util.ContextFullHostnameKey, fullHostname)
 	c.SetUserContext(ctx)
 	return c.Next()
 }
@@ -33,12 +30,22 @@ func VerifyUserAdminMiddleware(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
-	// Guardar username en context
+
+	// Extraer username
 	username, ok := claimsAccessToken["username"].(string)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
-	ctx := context.WithValue(c.UserContext(), usernameKey, username)
+
+	// Extraer userId
+	userIdFloat, ok := claimsAccessToken["userId"].(float64)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
+	}
+	userId := int(userIdFloat)
+	// Guardar en el contexto
+	ctx := context.WithValue(c.UserContext(), util.ContextUsernameKey, username)
+	ctx = context.WithValue(ctx, util.ContextUserIdKey, userId)
 	c.SetUserContext(ctx)
 
 	return c.Next()
@@ -46,7 +53,7 @@ func VerifyUserAdminMiddleware(c *fiber.Ctx) error {
 
 func VerifyRolesMiddleware(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		username := c.UserContext().Value(usernameKey).(string)
+		username := c.UserContext().Value(util.ContextUsernameKey).(string)
 		user, err := repository.NewUsuarioRepository(db).ObtenerUsuarioDetalleByUsername(c.UserContext(), &username)
 		if err != nil {
 			log.Print(err.Error())

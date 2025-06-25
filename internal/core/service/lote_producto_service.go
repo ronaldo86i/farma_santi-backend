@@ -4,10 +4,15 @@ import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/port"
+	"github.com/google/uuid"
 )
 
 type LoteProductoService struct {
 	loteProductoRepository port.LoteProductoRepository
+}
+
+func (l LoteProductoService) ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error) {
+	return l.loteProductoRepository.ListarLotesProductosByProductoId(ctx, productoId)
 }
 
 func (l LoteProductoService) ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error {

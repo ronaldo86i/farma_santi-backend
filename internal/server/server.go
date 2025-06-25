@@ -8,7 +8,9 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
+	"golang.org/x/exp/slog"
 	"log"
 	"os"
 	"strings"
@@ -25,6 +27,7 @@ type Server struct {
 	productoHandler        port.ProductoHandler
 	loteProductoHandler    port.LoteProductoHandler
 	principioActivoHandler port.PrincipioActivoHandler
+	compraHandler          port.CompraHandler
 }
 
 func NewServer(
@@ -37,6 +40,7 @@ func NewServer(
 	productoHandler port.ProductoHandler,
 	loteProductoHandler port.LoteProductoHandler,
 	principioActivoHandler port.PrincipioActivoHandler,
+	compraHandler port.CompraHandler,
 ) *Server {
 	return &Server{
 		authHandler:            authHandler,
@@ -48,6 +52,7 @@ func NewServer(
 		productoHandler:        productoHandler,
 		loteProductoHandler:    loteProductoHandler,
 		principioActivoHandler: principioActivoHandler,
+		compraHandler:          compraHandler,
 	}
 }
 
@@ -97,6 +102,9 @@ func (s *Server) startServer() {
 		AllowMethods:     "GET, POST, PUT, PATCH, DELETE",
 		AllowCredentials: true,
 	}))
+	app.Use(logger.New(logger.Config{
+		Format: "${ip} - ${method} ${path} - ${status} - ${latency}\n",
+	}))
 
 	// Definir rutas
 	s.initEndPoints(app)
@@ -105,7 +113,7 @@ func (s *Server) startServer() {
 	serverAddress := fmt.Sprintf(":%s", httpPort)
 
 	// Inicia el servidor Fiber
-	log.Println("🚀 Servidor iniciado en http://localhost" + serverAddress)
+	slog.Info("🚀 Servidor iniciado en http://localhost" + serverAddress)
 	if err := app.Listen(":" + httpPort); err != nil {
 		log.Fatalf("Error al iniciar el servidor Fiber: %v", err) // Registra y termina si hay un error al iniciar el servidor
 	}
@@ -116,9 +124,6 @@ func (s *Server) initDB() {
 	if err := database.Connection(); err != nil {
 		log.Fatalf("Error al conectar a la base de datos: %v", err)
 	}
-	//if err := db.Migration(); err != nil {
-	//	log.Fatalf("Error al realizar la migración de la base de datos: %v", err)
-	//}
 }
 
 // Initialize Inicializa el servidor
