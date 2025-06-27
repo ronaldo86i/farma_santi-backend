@@ -39,7 +39,16 @@ func (l LoteProductoRepository) ListarLotesProductosByProductoId(ctx context.Con
 }
 
 func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error {
-
+	var tieneCompra int
+	query := `SELECT 1 FROM detalle_compra dc WHERE dc.lote_producto_id=$1 LIMIT 1`
+	err := l.db.Pool.QueryRow(ctx, query, id).Scan(&tieneCompra)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Println("Error en el servidor:", err)
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	if tieneCompra == 1 {
+		return datatype.NewConflictError("El lote tiene compras asociadas, no es posible modificar")
+	}
 	tx, err := l.db.Pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -49,7 +58,7 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)
 
-	query := `UPDATE lote_producto SET lote=$1,fecha_vencimiento=$2,producto_id=$3 WHERE id = $4`
+	query = `UPDATE lote_producto SET lote=$1,fecha_vencimiento=$2,producto_id=$3 WHERE id = $4`
 	fechaVencimiento := request.FechaVencimiento.Format("2006-01-02")
 	// Insertamos el nuevo lote del producto
 	_, err = tx.Exec(ctx, query, request.Lote, fechaVencimiento, request.ProductoId.String(), *id)

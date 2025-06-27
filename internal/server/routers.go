@@ -55,6 +55,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1LotesProductos := v1.Group("/lotes-productos")
 	v1PrincipiosActivos := v1.Group("/principios-activos")
 	v1Compras := v1.Group("/compras")
+	v1Clientes := v1.Group("/clientes")
 	// path: /api/v1/usuarios/me
 	v1UsuariosMe.Get("", limited(20, 5*time.Minute, 5*time.Second), s.usuarioHandler.ObtenerUsuarioActual)
 
@@ -63,7 +64,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Roles.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
 	v1Usuarios.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
 	v1Categorias.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
-	v1Proveedores.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
+
 	v1Productos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1Laboratorios.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1LotesProductos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
@@ -105,6 +106,9 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	//path: /api/v1/proveedores
 	v1Proveedores.Get("", limite, s.proveedorHandler.ListarProveedores)
 	v1Proveedores.Get("/:proveedorId", limite, s.proveedorHandler.ObtenerProveedorById)
+
+	v1Proveedores.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE"))
+
 	v1Proveedores.Post("", limite, s.proveedorHandler.RegistrarProveedor)
 	v1Proveedores.Put("/:proveedorId", limite, s.proveedorHandler.ModificarProveedor)
 	v1Proveedores.Patch("/estado/habilitar/:proveedorId", limite, s.proveedorHandler.HabilitarProveedor)
@@ -149,4 +153,12 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Compras.Patch("/completar/:compraId", limite, s.compraHandler.RegistrarCompra)
 	v1Compras.Put("/:compraId", limite, s.compraHandler.ModificarOrdenCompra)
 	v1Compras.Patch("/anular/:compraId", limite, s.compraHandler.AnularOrdenCompra)
+
+	//path: /api/v1/clientes
+	v1Clientes.Get("", limite, s.clienteHandler.ObtenerListaClientes)
+	v1Clientes.Get("/:clienteId", limite, s.clienteHandler.ObtenerClienteById)
+	v1Clientes.Post("", limite, s.clienteHandler.RegistrarCliente)
+	v1Clientes.Put("/:clienteId", limite, s.clienteHandler.ModificarClienteById)
+	v1Clientes.Patch("/estado/habilitar/:clienteId", limite, s.clienteHandler.HabilitarCliente)
+	v1Clientes.Patch("/estado/deshabilitar/:clienteId", limite, s.clienteHandler.DeshabilitarCliente)
 }

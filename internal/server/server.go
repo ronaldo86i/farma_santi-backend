@@ -28,6 +28,7 @@ type Server struct {
 	loteProductoHandler    port.LoteProductoHandler
 	principioActivoHandler port.PrincipioActivoHandler
 	compraHandler          port.CompraHandler
+	clienteHandler         port.ClienteHandler
 }
 
 func NewServer(
@@ -41,6 +42,7 @@ func NewServer(
 	loteProductoHandler port.LoteProductoHandler,
 	principioActivoHandler port.PrincipioActivoHandler,
 	compraHandler port.CompraHandler,
+	clienteHandler port.ClienteHandler,
 ) *Server {
 	return &Server{
 		authHandler:            authHandler,
@@ -53,6 +55,7 @@ func NewServer(
 		loteProductoHandler:    loteProductoHandler,
 		principioActivoHandler: principioActivoHandler,
 		compraHandler:          compraHandler,
+		clienteHandler:         clienteHandler,
 	}
 }
 

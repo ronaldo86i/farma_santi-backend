@@ -8,6 +8,7 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"log"
 	"strings"
@@ -185,8 +186,9 @@ func (c CompraRepository) AnularOrdenCompra(ctx context.Context, id *int) error 
 func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 	var compra domain.CompraDAO
 
-	// Obtener compra y detalles (sin FOR UPDATE porque es una vista)
-	query := `SELECT c.id, c.estado, c.total, c.comentario, c.proveedor_id, c.usuario_id, c.detalles FROM view_compras_detalle c WHERE id = $1 LIMIT 1`
+	query := `SELECT c.id, c.estado, c.total, c.comentario, c.proveedor_id, c.usuario_id, c.detalles 
+	          FROM view_compras_detalle c 
+	          WHERE id = $1 LIMIT 1`
 
 	err := c.db.Pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.ProveedorId, &compra.UsuarioId, &compra.Detalles)
 	if err != nil {
@@ -194,18 +196,16 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	// Validar si la compra ya está completada o anulada
 	estado := strings.ToLower(compra.Estado)
 	switch estado {
 	case "completado":
 		log.Println("La compra ya está completada, no se puede volver a registrar.")
 		return datatype.NewConflictError("La compra ya fue registrada y completada")
 	case "anulado":
-		log.Println("La compra ya está anulada, no se puede  registrar.")
+		log.Println("La compra ya está anulada, no se puede registrar.")
 		return datatype.NewConflictError("La compra ya fue anulada")
 	}
 
-	// Iniciar transacción
 	tx, err := c.db.Pool.Begin(ctx)
 	if err != nil {
 		log.Println("Error al iniciar transacción:", err)
@@ -219,16 +219,18 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		}
 	}()
 
-	// Bloquear fila de compra para evitar modificaciones concurrentes
+	// Lock de compra
 	lockCompraQuery := `SELECT id FROM compra WHERE id = $1 FOR UPDATE`
 	_, err = tx.Exec(ctx, lockCompraQuery, *id)
 	if err != nil {
 		log.Println("Error al bloquear compra:", err)
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
 	productosId := make(map[string]bool)
+
 	for _, detalle := range compra.Detalles {
-		// Bloquear fila lote_producto
+		// Lock de lote_producto
 		lockLoteQuery := `SELECT id FROM lote_producto WHERE id = $1 FOR UPDATE`
 		_, err := tx.Exec(ctx, lockLoteQuery, detalle.LoteProductoId)
 		if err != nil {
@@ -236,7 +238,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 			return datatype.NewInternalServerErrorGeneric()
 		}
 
-		// Bloquear fila producto
+		// Lock de producto
 		lockProductoQuery := `SELECT precio_compra, stock FROM producto WHERE id = $1 FOR UPDATE`
 		var precioActual float64
 		var stockActual uint
@@ -246,8 +248,9 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 			log.Printf("Error al obtener precio_compra y stock del producto %d: %v", detalle.ProductoId, err)
 			return datatype.NewInternalServerErrorGeneric()
 		}
-		// Guardar id de productos
+
 		productosId[detalle.ProductoId.String()] = true
+
 		// Actualizar stock en lote_producto
 		updateLoteQuery := `UPDATE lote_producto SET stock = stock + $1 WHERE id = $2`
 		_, err = tx.Exec(ctx, updateLoteQuery, detalle.Cantidad, detalle.LoteProductoId)
@@ -263,7 +266,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 			return datatype.NewInternalServerErrorGeneric()
 		}
 
-		// Actualizar precio_compra y stock en producto
+		// Actualizar stock en producto
 		updateProductoQuery := `UPDATE producto SET stock = stock + $1 WHERE id = $2`
 		_, err = tx.Exec(ctx, updateProductoQuery, detalle.Cantidad, detalle.ProductoId)
 		if err != nil {
@@ -271,36 +274,8 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 			return datatype.NewInternalServerErrorGeneric()
 		}
 	}
-	// Actualizar los precios de los productos
-	for productoId := range productosId {
-		query = `
-		SELECT 
-			COALESCE(
-				SUM(dc.precio * dc.cantidad)::NUMERIC / NULLIF(SUM(dc.cantidad), 0),
-				0
-			) AS precio_promedio_ponderado
-		FROM detalle_compra dc
-		LEFT JOIN lote_producto lp ON dc.lote_producto_id = lp.id
-		LEFT JOIN compra c ON dc.compra_id = c.id
-		WHERE lp.producto_id = $1 AND lp.stock > 0 AND c.estado = 'Completado'
-	`
-		var precioPromedio float64
-		err = tx.QueryRow(ctx, query, productoId).Scan(&precioPromedio)
-		if err != nil {
-			log.Printf("Error al calcular precio promedio ponderado para producto %s: %v", productoId, err)
-			return datatype.NewInternalServerErrorGeneric()
-		}
 
-		// Actualizar el producto con este precio promedio ponderado:
-		updateQuery := `UPDATE producto SET precio_compra = $1 WHERE id = $2`
-		_, err = tx.Exec(ctx, updateQuery, precioPromedio, productoId)
-		if err != nil {
-			log.Printf("Error al actualizar precio_compra del producto %s: %v", productoId, err)
-			return datatype.NewInternalServerErrorGeneric()
-		}
-	}
-
-	// Actualizar estado de compra a Completado y fecha actual
+	// ✅ Actualizar estado antes de calcular promedio para incluir la misma compra
 	updateEstadoQuery := `UPDATE compra SET estado = 'Completado', fecha = CURRENT_TIMESTAMP WHERE id = $1`
 	_, err = tx.Exec(ctx, updateEstadoQuery, *id)
 	if err != nil {
@@ -308,12 +283,49 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	// Confirmar transacción
+	// 🔁 Calcular y actualizar precio promedio
+	for productoIdStr := range productosId {
+		productoUUID, err := uuid.Parse(productoIdStr)
+		if err != nil {
+			log.Printf("Error al parsear UUID del producto: %s", productoIdStr)
+			return datatype.NewBadRequestError("ID de producto inválido")
+		}
+
+		query = `
+			SELECT 
+				COALESCE(
+					SUM(dc.precio * dc.cantidad)::NUMERIC / NULLIF(SUM(dc.cantidad), 0),
+					0
+				) AS precio_promedio_ponderado
+			FROM detalle_compra dc
+			LEFT JOIN lote_producto lp ON dc.lote_producto_id = lp.id
+			LEFT JOIN compra c ON dc.compra_id = c.id
+			WHERE lp.producto_id = $1 AND c.estado = 'Completado'
+		`
+
+		var precioPromedio float64
+		err = tx.QueryRow(ctx, query, productoUUID).Scan(&precioPromedio)
+		if err != nil {
+			log.Printf("Error al calcular precio promedio ponderado para producto %s: %v", productoIdStr, err)
+			return datatype.NewInternalServerErrorGeneric()
+		}
+
+		log.Printf("Producto %s nuevo precio promedio: %.2f", productoIdStr, precioPromedio)
+
+		updateQuery := `UPDATE producto SET precio_compra = $1 WHERE id = $2`
+		_, err = tx.Exec(ctx, updateQuery, precioPromedio, productoUUID)
+		if err != nil {
+			log.Printf("Error al actualizar precio_compra del producto %s: %v", productoIdStr, err)
+			return datatype.NewInternalServerErrorGeneric()
+		}
+	}
+
 	err = tx.Commit(ctx)
 	if err != nil {
 		log.Println("Error al confirmar transacción:", err)
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
 	committed = true
 	return nil
 }
