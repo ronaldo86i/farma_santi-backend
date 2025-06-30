@@ -4,23 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"time"
 )
 
 type RolRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
 	query := `UPDATE rol r SET deleted_at = NULL, estado= 'Activo' WHERE r.id = $1`
-	tx, err := r.db.Pool.Begin(ctx)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -47,7 +47,7 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 		SET deleted_at = CURRENT_TIMESTAMP, estado= 'Inactivo'
 		WHERE r.id = $1
 	`
-	tx, err := r.db.Pool.Begin(ctx)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -71,7 +71,7 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 
 	query := `UPDATE rol SET nombre = $1 WHERE id = $2`
 
-	tx, err := r.db.Pool.Begin(ctx)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -102,7 +102,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 	// Primero, verificamos si el rol ya existe en la base de datos
 	queryCheck := `SELECT deleted_at FROM rol WHERE nombre = $1`
 	var deletedAt *time.Time
-	err := r.db.Pool.QueryRow(ctx, queryCheck, rolRequest.Nombre).Scan(&deletedAt)
+	err := r.pool.QueryRow(ctx, queryCheck, rolRequest.Nombre).Scan(&deletedAt)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		// Error al ejecutar la consulta
@@ -115,7 +115,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 	}
 
 	queryInsert := `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id, nombre, created_at, deleted_at;`
-	tx, err := r.db.Pool.Begin(ctx)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		log.Print("Error al iniciar transacción:", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -144,7 +144,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 
 func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 	query := "SELECT r.id, r.nombre,r.estado, r.created_at, r.deleted_at FROM rol r ORDER BY created_at DESC "
-	rows, err := r.db.Pool.Query(ctx, query)
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -167,7 +167,7 @@ func (r RolRepository) ListarRoles(ctx context.Context) (*[]domain.Rol, error) {
 
 func (r RolRepository) ObtenerRolById(ctx context.Context, id *int) (*domain.Rol, error) {
 	query := "SELECT r.id, r.nombre, r.created_at, r.deleted_at FROM rol r WHERE r.id = $1 ORDER BY r.id"
-	row := r.db.Pool.QueryRow(ctx, query, id)
+	row := r.pool.QueryRow(ctx, query, id)
 
 	var rol domain.Rol
 	if err := row.Scan(&rol.Id, &rol.Nombre, &rol.CreatedAt, &rol.DeletedAt); err != nil {
@@ -180,8 +180,8 @@ func (r RolRepository) ObtenerRolById(ctx context.Context, id *int) (*domain.Rol
 	return &rol, nil
 }
 
-func NewRolRepository(db *database.DB) *RolRepository {
-	return &RolRepository{db}
+func NewRolRepository(pool *pgxpool.Pool) *RolRepository {
+	return &RolRepository{pool: pool}
 }
 
 var _ port.RolRepository = (*RolRepository)(nil)

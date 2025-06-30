@@ -3,22 +3,22 @@ package repository
 import (
 	"context"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PrincipioActivoRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) error {
 	query := `INSERT INTO principio_activo(nombre, descripcion) VALUES ($1, $2)`
 
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -45,7 +45,7 @@ func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context,
 func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context, id *int, request *domain.PrincipioActivoRequest) error {
 	query := `UPDATE principio_activo SET nombre = $1, descripcion = $2 WHERE id = $3`
 
-	result, err := p.db.Pool.Exec(ctx, query, request.Nombre, request.Descripcion, *id)
+	result, err := p.pool.Exec(ctx, query, request.Nombre, request.Descripcion, *id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -65,7 +65,7 @@ func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context,
 
 func (p PrincipioActivoRepository) ListarPrincipioActivo(ctx context.Context) (*[]domain.PrincipioActivoInfo, error) {
 	query := `SELECT id, nombre, descripcion FROM principio_activo ORDER BY nombre`
-	rows, err := p.db.Pool.Query(ctx, query)
+	rows, err := p.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -89,7 +89,7 @@ func (p PrincipioActivoRepository) ListarPrincipioActivo(ctx context.Context) (*
 
 func (p PrincipioActivoRepository) ObtenerPrincipioActivoById(ctx context.Context, id *int) (*domain.PrincipioActivoDetail, error) {
 	query := `SELECT id, nombre, descripcion FROM principio_activo WHERE id = $1`
-	row := p.db.Pool.QueryRow(ctx, query, *id)
+	row := p.pool.QueryRow(ctx, query, *id)
 
 	var detalle domain.PrincipioActivoDetail
 	err := row.Scan(&detalle.Id, &detalle.Nombre, &detalle.Descripcion)
@@ -102,8 +102,8 @@ func (p PrincipioActivoRepository) ObtenerPrincipioActivoById(ctx context.Contex
 	return &detalle, nil
 }
 
-func NewPrincipioActivoRepository(db *database.DB) *PrincipioActivoRepository {
-	return &PrincipioActivoRepository{db: db}
+func NewPrincipioActivoRepository(pool *pgxpool.Pool) *PrincipioActivoRepository {
+	return &PrincipioActivoRepository{pool: pool}
 }
 
 var _ port.PrincipioActivoRepository = (*PrincipioActivoRepository)(nil)

@@ -8,21 +8,21 @@ import (
 	"farma-santi_backend/internal/server"
 )
 
-var db = &database.DBInstance
+var pool = database.GetDB()
 
 func main() {
 
 	// Inicializar repositorios
-	usuarioRepository := repository.NewUsuarioRepository(db)
-	rolRepository := repository.NewRolRepository(db)
-	categoriaRepository := repository.NewCategoriaRepository(db)
-	proveedorRepository := repository.NewProveedorRepository(db)
-	laboratorioRepository := repository.NewLaboratorioRepository(db)
-	productoRepository := repository.NewProductoRepository(db)
-	loteProductoRepository := repository.NewLoteProductoRepository(db)
-	principioActivoRepository := repository.NewPrincipioActivoRepository(db)
-	compraRepository := repository.NewCompraRepository(db)
-	clienteRepository := repository.NewClienteRepository(db)
+	usuarioRepository := repository.NewUsuarioRepository(pool)
+	rolRepository := repository.NewRolRepository(pool)
+	categoriaRepository := repository.NewCategoriaRepository(pool)
+	proveedorRepository := repository.NewProveedorRepository(pool)
+	laboratorioRepository := repository.NewLaboratorioRepository(pool)
+	productoRepository := repository.NewProductoRepository(pool)
+	loteProductoRepository := repository.NewLoteProductoRepository(pool)
+	principioActivoRepository := repository.NewPrincipioActivoRepository(pool)
+	compraRepository := repository.NewCompraRepository(pool)
+	clienteRepository := repository.NewClienteRepository(pool)
 
 	// Inicializar servicios
 	authService := service.NewAuthService(usuarioRepository)

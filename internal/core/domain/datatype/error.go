@@ -20,13 +20,16 @@ func NewInternalServerErrorGeneric() *ErrorResponse {
 func NewStatusServiceUnavailableErrorGeneric() *ErrorResponse {
 	return NewErrorResponse(http.StatusServiceUnavailable, "Servicio no disponible, inténtelo más tarde.")
 }
+
 func NewStatusUnauthorizedError(message string) *ErrorResponse {
 	return NewErrorResponse(http.StatusUnauthorized, message)
 
 }
+
 func NewInternalServerError(message string) *ErrorResponse {
 	return NewErrorResponse(http.StatusInternalServerError, message)
 }
+
 func NewBadRequestError(message string) *ErrorResponse {
 	return NewErrorResponse(http.StatusBadRequest, message)
 }

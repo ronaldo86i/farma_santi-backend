@@ -4,22 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 )
 
 type CategoriaRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (c CategoriaRepository) ListarCategoriasDisponibles(ctx context.Context) (*[]domain.Categoria, error) {
 
 	query := `SELECT c.id,c.nombre,c.estado,c.created_at,c.deleted_at FROM categoria c WHERE c.estado = 'Activo' ORDER BY c.nombre`
-	rows, err := c.db.Pool.Query(ctx, query)
+	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		log.Println(err.Error())
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -47,7 +47,7 @@ func (c CategoriaRepository) ListarCategoriasDisponibles(ctx context.Context) (*
 func (c CategoriaRepository) HabilitarCategoria(ctx context.Context, categoriaId *int) error {
 	query := `UPDATE categoria c SET deleted_at = NULL,estado='Activo' WHERE id=$1;`
 	//Inicializar transacción
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -67,7 +67,7 @@ func (c CategoriaRepository) HabilitarCategoria(ctx context.Context, categoriaId
 func (c CategoriaRepository) DeshabilitarCategoria(ctx context.Context, categoriaId *int) error {
 	query := `UPDATE categoria c SET deleted_at = CURRENT_TIMESTAMP,estado='Inactivo' WHERE id=$1;`
 	//Inicializar transacción
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -87,7 +87,7 @@ func (c CategoriaRepository) DeshabilitarCategoria(ctx context.Context, categori
 func (c CategoriaRepository) ObtenerCategoriaById(ctx context.Context, categoriaId *int) (*domain.Categoria, error) {
 	var categoria domain.Categoria
 	query := `SELECT c.id,c.nombre,c.created_at,c.deleted_at FROM categoria c WHERE c.id=$1`
-	err := c.db.Pool.QueryRow(ctx, query, *categoriaId).Scan(&categoria.Id, &categoria.Nombre, &categoria.CreatedAt, &categoria.DeletedAt)
+	err := c.pool.QueryRow(ctx, query, *categoriaId).Scan(&categoria.Id, &categoria.Nombre, &categoria.CreatedAt, &categoria.DeletedAt)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
@@ -102,7 +102,7 @@ func (c CategoriaRepository) ObtenerCategoriaById(ctx context.Context, categoria
 func (c CategoriaRepository) ListarCategorias(ctx context.Context) (*[]domain.Categoria, error) {
 	var categorias []domain.Categoria
 	query := `SELECT c.id,c.nombre,c.estado,c.created_at,c.deleted_at FROM categoria c ORDER BY c.nombre`
-	rows, err := c.db.Pool.Query(ctx, query)
+	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		log.Println(err.Error())
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -134,7 +134,7 @@ func (c CategoriaRepository) ModificarCategoria(ctx context.Context, categoriaId
 	query := `UPDATE categoria SET nombre = $1 WHERE id = $2`
 
 	// Iniciar transacción
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -168,7 +168,7 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 	queryCheck := `SELECT 1 FROM categoria c WHERE c.nombre = $1`
 
 	// Ejecutar la consulta
-	res, err := c.db.Pool.Exec(ctx, queryCheck, categoriaRequest.Nombre)
+	res, err := c.pool.Exec(ctx, queryCheck, categoriaRequest.Nombre)
 	if err != nil {
 		// Si hay error en la consulta, retornamos un error de servicio no disponible
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -186,7 +186,7 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 	VALUES ($1, NULL);
 	`
 
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -210,8 +210,8 @@ func (c CategoriaRepository) RegistrarCategoria(ctx context.Context, categoriaRe
 	return nil
 }
 
-func NewCategoriaRepository(db *database.DB) *CategoriaRepository {
-	return &CategoriaRepository{db: db}
+func NewCategoriaRepository(pool *pgxpool.Pool) *CategoriaRepository {
+	return &CategoriaRepository{pool: pool}
 }
 
 var _ port.CategoriaRepository = (*CategoriaRepository)(nil)

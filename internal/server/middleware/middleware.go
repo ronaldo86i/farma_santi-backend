@@ -13,7 +13,7 @@ import (
 	"net/http"
 )
 
-var db = &database.DBInstance
+var db = database.GetDB()
 
 // HostnameMiddleware guarda y registra el hostname completo de la petición
 func HostnameMiddleware(c *fiber.Ctx) error {

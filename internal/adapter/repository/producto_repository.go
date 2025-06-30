@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
@@ -12,6 +11,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	"log"
 	"mime/multipart"
@@ -19,7 +19,7 @@ import (
 )
 
 type ProductoRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UUID) (*domain.ProductoDetail, error) {
@@ -27,7 +27,7 @@ func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UU
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
 	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock_min,p.stock,p.fotos,p.created_at,p.deleted_at,p.estado,p.categorias,p.principio_activos,p.precio_compra FROM obtener_producto_detalle_by_id($1,$2) p;`
 	var item domain.ProductoDetail
-	err := p.db.Pool.QueryRow(ctx, query, id.String(), fullHostname).Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica,
+	err := p.pool.QueryRow(ctx, query, id.String(), fullHostname).Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica,
 		&item.Laboratorio, &item.PrecioVenta, &item.StockMin, &item.Stock, &item.UrlFotos, &item.CreatedAt, &item.DeletedAt, &item.Estado, &item.Categorias, &item.PrincipiosActivos, &item.PrecioCompra)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -40,12 +40,12 @@ func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UU
 
 func (p ProductoRepository) HabilitarProducto(ctx context.Context, id *uuid.UUID) error {
 	// Inicio de transacción
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	query := `UPDATE producto SET estado='Activo',deleted_at=NULL WHERE id=$1`
-	_, err = p.db.Pool.Exec(ctx, query, id.String())
+	_, err = tx.Exec(ctx, query, id.String())
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -59,12 +59,12 @@ func (p ProductoRepository) HabilitarProducto(ctx context.Context, id *uuid.UUID
 
 func (p ProductoRepository) DeshabilitarProducto(ctx context.Context, id *uuid.UUID) error {
 	// Inicio de transacción
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	query := `UPDATE producto SET estado='Inactivo',deleted_at=CURRENT_TIMESTAMP WHERE id=$1`
-	_, err = p.db.Pool.Exec(ctx, query, id.String())
+	_, err = tx.Exec(ctx, query, id.String())
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -78,7 +78,7 @@ func (p ProductoRepository) DeshabilitarProducto(ctx context.Context, id *uuid.U
 
 func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error {
 	// Inicio de transacción
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -154,7 +154,7 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 }
 
 func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) (err error) {
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -254,7 +254,7 @@ func (p ProductoRepository) ListarUnidadesMedida(ctx context.Context) (*[]domain
 	query := `SELECT um.id,um.nombre,um.abreviatura FROM unidad_medida um ORDER BY um.nombre`
 	var list = make([]domain.UnidadMedida, 0)
 
-	rows, err := p.db.Pool.Query(ctx, query)
+	rows, err := p.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (p ProductoRepository) ListarFormasFarmaceuticas(ctx context.Context) (*[]d
 	query := `SELECT ff.id,ff.nombre FROM forma_farmaceutica ff ORDER BY ff.nombre`
 	var list = make([]domain.FormaFarmaceutica, 0)
 
-	rows, err := p.db.Pool.Query(ctx, query)
+	rows, err := p.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +303,7 @@ func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.Prod
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
 
 	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock,p.stock_min,p.url_foto,p.estado,p.deleted_at,p.precio_compra FROM listar_productos_info($1) p`
-	rows, err := p.db.Pool.Query(ctx, query, fullHostname)
+	rows, err := p.pool.Query(ctx, query, fullHostname)
 	if err != nil {
 		log.Println(err)
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -327,8 +327,8 @@ func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.Prod
 	return &list, nil
 }
 
-func NewProductoRepository(db *database.DB) *ProductoRepository {
-	return &ProductoRepository{db: db}
+func NewProductoRepository(pool *pgxpool.Pool) *ProductoRepository {
+	return &ProductoRepository{pool: pool}
 }
 
 var _ port.ProductoRepository = (*ProductoRepository)(nil)

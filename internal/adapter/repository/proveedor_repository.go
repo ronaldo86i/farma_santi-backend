@@ -3,22 +3,22 @@ package repository
 import (
 	"context"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 )
 
 type ProveedorRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) error {
 	query := `UPDATE proveedor p SET deleted_at = NULL,estado='Activo' WHERE p.id = $1`
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -40,7 +40,7 @@ func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) er
 
 func (p ProveedorRepository) DeshabilitarProveedor(ctx context.Context, id *int) error {
 	query := `UPDATE proveedor p SET deleted_at=CURRENT_TIMESTAMP,estado='Inactivo' WHERE p.id = $1`
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -65,7 +65,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	queryCheck := `SELECT 1 FROM proveedor p WHERE p.nit = $1 LIMIT 1`
 
 	// Ejecutar la consulta
-	res, err := p.db.Pool.Exec(ctx, queryCheck, request.NIT)
+	res, err := p.pool.Exec(ctx, queryCheck, request.NIT)
 	if err != nil {
 		log.Println("proveedor.registrar", err)
 		// Si hay error en la consulta, retornamos un error de servicio no disponible
@@ -79,7 +79,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	}
 
 	// Iniciar la transacción
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		// Si no se puede iniciar la transacción, retornar error interno
 		return datatype.NewInternalServerErrorGeneric()
@@ -114,7 +114,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 func (p ProveedorRepository) ObtenerProveedorById(ctx context.Context, id *int) (*domain.ProveedorDetail, error) {
 	var proveedor domain.ProveedorDetail
 	query := `SELECT p.id,p.nit,p.razon_social,p.representante,p.direccion,p.telefono,p.celular,p.email,p.created_at,p.deleted_at FROM proveedor p WHERE p.id = $1 LIMIT 1`
-	err := p.db.Pool.QueryRow(ctx, query, *id).Scan(&proveedor.Id, &proveedor.NIT, &proveedor.RazonSocial, &proveedor.Representante, &proveedor.Direccion, &proveedor.Telefono, &proveedor.Celular, &proveedor.Email, &proveedor.CreatedAt, &proveedor.DeletedAt)
+	err := p.pool.QueryRow(ctx, query, *id).Scan(&proveedor.Id, &proveedor.NIT, &proveedor.RazonSocial, &proveedor.Representante, &proveedor.Direccion, &proveedor.Telefono, &proveedor.Celular, &proveedor.Email, &proveedor.CreatedAt, &proveedor.DeletedAt)
 	if err != nil {
 		log.Print(err)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -128,7 +128,7 @@ func (p ProveedorRepository) ObtenerProveedorById(ctx context.Context, id *int) 
 
 func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.ProveedorInfo, error) {
 	query := `SELECT p.id, p.estado,p.nit, p.razon_social, p.representante, p.direccion, p.created_at, p.deleted_at FROM proveedor p`
-	rows, err := p.db.Pool.Query(ctx, query)
+	rows, err := p.pool.Query(ctx, query)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Println(err)
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -147,7 +147,7 @@ func (p ProveedorRepository) ListarProveedores(ctx context.Context) (*[]domain.P
 }
 
 func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, request *domain.ProveedorRequest) error {
-	tx, err := p.db.Pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		// Si no se puede iniciar la transacción, retornar error interno
 		return datatype.NewInternalServerErrorGeneric()
@@ -189,8 +189,8 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 	return nil
 }
 
-func NewProveedorRepository(db *database.DB) *ProveedorRepository {
-	return &ProveedorRepository{db}
+func NewProveedorRepository(pool *pgxpool.Pool) *ProveedorRepository {
+	return &ProveedorRepository{pool: pool}
 }
 
 var _ port.ProveedorRepository = (*ProveedorRepository)(nil)

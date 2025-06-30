@@ -4,24 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 	"strings"
 )
 
 type CompraRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error) {
 	query := `SELECT v.id,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.created_at,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
 	var compra domain.CompraDetail
-	err := c.db.Pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.CreatedAt, &compra.DeletedAt, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.CreatedAt, &compra.DeletedAt, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al obtener compra:", err.Error())
 		if errors.Is(err, sql.ErrNoRows) {
@@ -34,7 +34,7 @@ func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*doma
 }
 
 func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) error {
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -79,7 +79,7 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
 
 func (c CompraRepository) ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error {
 	// Iniciar transacción
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -141,7 +141,7 @@ func (c CompraRepository) ModificarOrdenCompra(ctx context.Context, id *int, req
 
 func (c CompraRepository) AnularOrdenCompra(ctx context.Context, id *int) error {
 	// Iniciar transacción
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -190,7 +190,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 	          FROM view_compras_detalle c 
 	          WHERE id = $1 LIMIT 1`
 
-	err := c.db.Pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.ProveedorId, &compra.UsuarioId, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.ProveedorId, &compra.UsuarioId, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al consultar la compra:", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -206,7 +206,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		return datatype.NewConflictError("La compra ya fue anulada")
 	}
 
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Println("Error al iniciar transacción:", err)
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -332,7 +332,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 
 func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error) {
 	query := `SELECT c.id, c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.created_at FROM view_listar_compras c`
-	rows, err := c.db.Pool.Query(ctx, query)
+	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -354,8 +354,8 @@ func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.Co
 	return &list, nil
 }
 
-func NewCompraRepository(db *database.DB) *CompraRepository {
-	return &CompraRepository{db: db}
+func NewCompraRepository(pool *pgxpool.Pool) *CompraRepository {
+	return &CompraRepository{pool: pool}
 }
 
 var _ port.CompraRepository = (*CompraRepository)(nil)

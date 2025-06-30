@@ -4,20 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	"github.com/sethvargo/go-password/password"
 	"log"
 )
 
 type UsuarioRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error) {
@@ -30,7 +30,7 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	query := `UPDATE usuario SET password = $1,updated_at=CURRENT_TIMESTAMP WHERE id = $2 `
-	tx, err := u.db.Pool.Begin(ctx)
+	tx, err := u.pool.Begin(ctx)
 	if err != nil {
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -58,7 +58,7 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 func (u UsuarioRepository) HabilitarUsuarioById(ctx context.Context, usuarioId *int) error {
 
 	query := `UPDATE usuario u SET deleted_at=NULL, estado='Activo' WHERE u.id = $1`
-	tx, err := u.db.Pool.Begin(ctx)
+	tx, err := u.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -81,7 +81,7 @@ func (u UsuarioRepository) HabilitarUsuarioById(ctx context.Context, usuarioId *
 
 func (u UsuarioRepository) DeshabilitarUsuarioById(ctx context.Context, usuarioId *int) error {
 	query := `UPDATE usuario u SET deleted_at=CURRENT_TIMESTAMP, estado='Inactivo' WHERE u.id = $1`
-	tx, err := u.db.Pool.Begin(ctx)
+	tx, err := u.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -105,7 +105,7 @@ func (u UsuarioRepository) ObtenerUsuarioDetalleByUsername(ctx context.Context, 
 	queryUsuarioDetalle := `SELECT oud.id, oud.username,oud.estado,oud.created_at,oud.updated_at,oud.deleted_at, oud.persona, oud.roles FROM obtener_usuario_detalle_by_username($1) oud;`
 	var usuarioDetalle domain.UsuarioDetail
 
-	err := u.db.Pool.QueryRow(ctx, queryUsuarioDetalle, *username).
+	err := u.pool.QueryRow(ctx, queryUsuarioDetalle, *username).
 		Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona, &usuarioDetalle.Roles)
 	if err != nil {
 		log.Println(err.Error())
@@ -122,7 +122,7 @@ func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.Usuari
 	query := `
 	SELECT f.id, f.username,f.estado,f.created_at, f.updated_at, f.deleted_at, f.persona FROM view_lista_usuarios f ORDER BY f.id;`
 
-	rows, err := u.db.Pool.Query(ctx, query)
+	rows, err := u.pool.Query(ctx, query)
 	if err != nil {
 		log.Println("Error al listar usuarios", err)
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -151,7 +151,7 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	persona := usuarioRequest.Persona
 	var pgErr *pgconn.PgError
 
-	tx, err := u.db.Pool.Begin(ctx)
+	tx, err := u.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -224,7 +224,7 @@ func (u UsuarioRepository) ObtenerUsuarioDetalle(ctx context.Context, usuarioId 
 	queryUsuarioDetalle := `SELECT oud.id, oud.username,oud.estado,oud.created_at,oud.updated_at,oud.deleted_at, oud.persona, oud.roles FROM obtener_usuario_detalle_by_id($1) oud;`
 	var usuarioDetalle domain.UsuarioDetail
 
-	err := u.db.Pool.QueryRow(ctx, queryUsuarioDetalle, *usuarioId).
+	err := u.pool.QueryRow(ctx, queryUsuarioDetalle, *usuarioId).
 		Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Estado, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt, &usuarioDetalle.Persona, &usuarioDetalle.Roles)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -247,7 +247,7 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		return nil, err
 	}
 	// Comienza la transacción
-	tx, err := u.db.Pool.Begin(ctx)
+	tx, err := u.pool.Begin(ctx)
 	if err != nil {
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -322,7 +322,7 @@ func (u UsuarioRepository) ObtenerUsuario(ctx context.Context, username *string)
 	query := `SELECT u.id, u.username, u.password, u.deleted_at FROM usuario u WHERE u.username = $1 LIMIT 1`
 
 	var usuario domain.Usuario
-	err := u.db.Pool.QueryRow(ctx, query, *username).Scan(&usuario.Id, &usuario.Username, &usuario.Password, &usuario.DeletedAt)
+	err := u.pool.QueryRow(ctx, query, *username).Scan(&usuario.Id, &usuario.Username, &usuario.Password, &usuario.DeletedAt)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
@@ -341,8 +341,8 @@ func (u UsuarioRepository) ObtenerUsuario(ctx context.Context, username *string)
 	return &usuario, nil
 }
 
-func NewUsuarioRepository(db *database.DB) *UsuarioRepository {
-	return &UsuarioRepository{db: db}
+func NewUsuarioRepository(pool *pgxpool.Pool) *UsuarioRepository {
+	return &UsuarioRepository{pool: pool}
 }
 
 var _ port.UsuarioRepository = (*UsuarioRepository)(nil)

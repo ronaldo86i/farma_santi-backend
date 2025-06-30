@@ -4,23 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 )
 
 type ClienteRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error) {
 	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado FROM cliente c`
 
-	rows, err := c.db.Pool.Query(ctx, query)
+	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.
 func (c ClienteRepository) ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error) {
 	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.email,c.telefono,c.created_at,c.created_at FROM cliente c WHERE c.id=$1`
 	var cliente domain.ClienteDetail
-	err := c.db.Pool.QueryRow(ctx, query, *id).Scan(&cliente.Id, &cliente.NitCi, &cliente.Complemento, &cliente.Tipo, &cliente.RazonSocial, &cliente.Estado, &cliente.Email, &cliente.Telefono, &cliente.CreatedAt, &cliente.DeletedAt)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&cliente.Id, &cliente.NitCi, &cliente.Complemento, &cliente.Tipo, &cliente.RazonSocial, &cliente.Estado, &cliente.Email, &cliente.Telefono, &cliente.CreatedAt, &cliente.DeletedAt)
 	if err != nil {
 		log.Println("Error al obtener cliente:", err.Error())
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,7 +58,7 @@ func (c ClienteRepository) ObtenerClienteById(ctx context.Context, id *int) (*do
 }
 
 func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) error {
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -102,8 +102,10 @@ func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain
 
 			switch pgErr.Code {
 			case "23505": // unique_violation
-				if pgErr.ConstraintName == "unique_nit_ci_complemento" {
-					return datatype.NewConflictError("Ya existe un cliente con ese CI/NIT y complemento")
+				if pgErr.ConstraintName == "idx_unique_ci_complemento" {
+					return datatype.NewConflictError("Ya existe un cliente con ese CI y complemento")
+				} else if pgErr.ConstraintName == "idx_unique_nit" {
+					return datatype.NewConflictError("Ya existe un cliente con ese NIT")
 				}
 			case "23514": // check_violation
 				return datatype.NewBadRequestError(fmt.Sprintf("Violación de regla de negocio: %s", pgErr.ConstraintName))
@@ -127,7 +129,7 @@ func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain
 }
 
 func (c ClienteRepository) ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error {
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -179,7 +181,27 @@ func (c ClienteRepository) ModificarClienteById(ctx context.Context, id *int, re
 
 	_, err = tx.Exec(ctx, updateQuery, params...)
 	if err != nil {
-		log.Printf("Error al modificar cliente con id %d: %v", *id, err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			log.Printf("Error PG al registrar cliente: %s (constraint: %s, code: %s)", pgErr.Message, pgErr.ConstraintName, pgErr.Code)
+
+			switch pgErr.Code {
+			case "23505": // unique_violation
+				if pgErr.ConstraintName == "idx_unique_ci_complemento" {
+					return datatype.NewConflictError("Ya existe un cliente con ese CI y complemento")
+				} else if pgErr.ConstraintName == "idx_unique_nit" {
+					return datatype.NewConflictError("Ya existe un cliente con ese NIT")
+				}
+			case "23514": // check_violation
+				return datatype.NewBadRequestError(fmt.Sprintf("Violación de regla de negocio: %s", pgErr.ConstraintName))
+			case "23502": // not_null_violation
+				return datatype.NewBadRequestError(fmt.Sprintf("Falta un campo obligatorio: %s", pgErr.ColumnName))
+			case "22P02": // invalid_text_representation (por ejemplo, error al insertar texto donde se espera número)
+				return datatype.NewBadRequestError("Tipo de dato inválido")
+			}
+		}
+
+		log.Printf("Error inesperado al registrar cliente: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
@@ -192,7 +214,7 @@ func (c ClienteRepository) ModificarClienteById(ctx context.Context, id *int, re
 }
 
 func (c ClienteRepository) HabilitarCliente(ctx context.Context, id *int) error {
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -222,7 +244,7 @@ func (c ClienteRepository) HabilitarCliente(ctx context.Context, id *int) error 
 }
 
 func (c ClienteRepository) DeshabilitarCliente(ctx context.Context, id *int) error {
-	tx, err := c.db.Pool.Begin(ctx)
+	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -252,8 +274,8 @@ func (c ClienteRepository) DeshabilitarCliente(ctx context.Context, id *int) err
 	return nil
 }
 
-func NewClienteRepository(db *database.DB) *ClienteRepository {
-	return &ClienteRepository{db: db}
+func NewClienteRepository(pool *pgxpool.Pool) *ClienteRepository {
+	return &ClienteRepository{pool: pool}
 }
 
 var _ port.ClienteRepository = (*ClienteRepository)(nil)

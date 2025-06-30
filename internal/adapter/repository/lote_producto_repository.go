@@ -4,23 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
+	"strings"
 )
 
 type LoteProductoRepository struct {
-	db *database.DB
+	pool *pgxpool.Pool
 }
 
 func (l LoteProductoRepository) ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error) {
 	query := `SELECT lp.id,lp.lote,lp.fecha_vencimiento FROM lote_producto lp WHERE lp.producto_id = $1`
-	rows, err := l.db.Pool.Query(ctx, query, productoId.String())
+	rows, err := l.pool.Query(ctx, query, productoId.String())
 	if err != nil {
 		return nil, datatype.NewInternalServerError("Error al obtener la lista")
 	}
@@ -41,7 +42,7 @@ func (l LoteProductoRepository) ListarLotesProductosByProductoId(ctx context.Con
 func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error {
 	var tieneCompra int
 	query := `SELECT 1 FROM detalle_compra dc WHERE dc.lote_producto_id=$1 LIMIT 1`
-	err := l.db.Pool.QueryRow(ctx, query, id).Scan(&tieneCompra)
+	err := l.pool.QueryRow(ctx, query, id).Scan(&tieneCompra)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Println("Error en el servidor:", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -49,7 +50,7 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 	if tieneCompra == 1 {
 		return datatype.NewConflictError("El lote tiene compras asociadas, no es posible modificar")
 	}
-	tx, err := l.db.Pool.Begin(ctx)
+	tx, err := l.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -94,7 +95,7 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 
 func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
 	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM view_lotes_con_productos lp`
-	rows, err := l.db.Pool.Query(ctx, query)
+	rows, err := l.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerError("Error al obtener la lista")
 	}
@@ -120,7 +121,7 @@ func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]do
 }
 
 func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, request *domain.LoteProductoRequest) error {
-	tx, err := l.db.Pool.Begin(ctx)
+	tx, err := l.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -138,16 +139,16 @@ func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, reque
 		if errors.As(err, &pgErr) {
 			switch pgErr.Code {
 			case "23505":
-				// unique_violation
 				return datatype.NewConflictError("Ya existe un lote con esos datos para este producto")
 			case "23503":
-				// foreign_key_violation
 				return datatype.NewBadRequestError("El producto seleccionado no existe")
-			case "23514":
-				// check_violation
-				return datatype.NewBadRequestError("Fecha de vencimiento inválida o fuera de rango permitido")
+			case "P0001":
+				// Código para excepciones lanzadas por RAISE EXCEPTION en trigger
+				if strings.Contains(pgErr.Message, "fecha de vencimiento") {
+					return datatype.NewBadRequestError("La fecha de vencimiento no puede ser menor que la fecha actual")
+				}
+				return datatype.NewInternalServerErrorGeneric()
 			default:
-				// Otro error de base de datos
 				return datatype.NewInternalServerErrorGeneric()
 			}
 		}
@@ -167,7 +168,7 @@ func (l LoteProductoRepository) ObtenerLoteProductoById(ctx context.Context, id 
 	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM obtener_lote_by_id($1) lp`
 
 	var item domain.LoteProductoDetail
-	err := l.db.Pool.QueryRow(ctx, query, *id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
+	err := l.pool.QueryRow(ctx, query, *id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
@@ -180,8 +181,8 @@ func (l LoteProductoRepository) ObtenerLoteProductoById(ctx context.Context, id 
 	return &item, nil
 }
 
-func NewLoteProductoRepository(db *database.DB) *LoteProductoRepository {
-	return &LoteProductoRepository{db: db}
+func NewLoteProductoRepository(pool *pgxpool.Pool) *LoteProductoRepository {
+	return &LoteProductoRepository{pool: pool}
 }
 
 var _ port.LoteProductoRepository = (*LoteProductoRepository)(nil)

@@ -1,8 +1,7 @@
 *.env
-sql/schema.sql
 /test
 .idea
 *.tar
 *.exe
-*.sql
 *.log
+/public/uploads/*
