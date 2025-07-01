@@ -1,8 +1,8 @@
-package database
+package postgresql
 
 import (
 	"context"
-	"farma-santi_backend/internal/slog_logger"
+	"farma-santi_backend/internal/postgresql/slog_logger"
 	"fmt"
 	"os"
 	"sync"

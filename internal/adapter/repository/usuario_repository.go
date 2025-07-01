@@ -240,7 +240,7 @@ func (u UsuarioRepository) ObtenerUsuarioDetalle(ctx context.Context, usuarioId 
 func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest *domain.UsuarioRequest) (*domain.UsuarioDetail, error) {
 	passwordGenerated, err := password.Generate(8, 3, 0, false, false)
 	if err != nil {
-		log.Fatal(err)
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	hashPassword, err := util.Hash.HashearPassword(passwordGenerated)
 	if err != nil {

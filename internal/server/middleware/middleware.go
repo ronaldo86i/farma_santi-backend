@@ -3,17 +3,17 @@ package middleware
 import (
 	"context"
 	"errors"
-	"farma-santi_backend/internal/adapter/database"
 	"farma-santi_backend/internal/adapter/repository"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/util"
+	"farma-santi_backend/internal/postgresql"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
 )
 
-var db = database.GetDB()
+var db = postgresql.GetDB()
 
 // HostnameMiddleware guarda y registra el hostname completo de la petición
 func HostnameMiddleware(c *fiber.Ctx) error {

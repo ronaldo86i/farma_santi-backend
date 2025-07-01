@@ -84,7 +84,8 @@ type ProductoDetail struct {
 }
 
 type ProductoSimple struct {
-	Id              uuid.UUID `json:"id"`
-	NombreComercial string    `json:"nombreComercial"`
-	Laboratorio     string    `json:"laboratorio,omitempty"`
+	Id                uuid.UUID `json:"id"`
+	NombreComercial   string    `json:"nombreComercial"`
+	Laboratorio       string    `json:"laboratorio,omitempty"`
+	FormaFarmaceutica string    `json:"formaFarmaceutica,omitempty"`
 }

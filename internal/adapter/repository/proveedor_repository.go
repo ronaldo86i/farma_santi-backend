@@ -22,6 +22,7 @@ func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) er
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
 	defer func(tx pgx.Tx, ctx context.Context) {
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)

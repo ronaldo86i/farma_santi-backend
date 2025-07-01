@@ -11,6 +11,10 @@ type LoteProductoService struct {
 	loteProductoRepository port.LoteProductoRepository
 }
 
+func (l LoteProductoService) ActualizarLotesVencidos(ctx context.Context) error {
+	return l.loteProductoRepository.ActualizarLotesVencidos(ctx)
+}
+
 func (l LoteProductoService) ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error) {
 	return l.loteProductoRepository.ListarLotesProductosByProductoId(ctx, productoId)
 }

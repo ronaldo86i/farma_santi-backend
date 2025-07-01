@@ -13,6 +13,7 @@ type LoteProductoRepository interface {
 	ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error
 	ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error)
 	ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error)
+	ActualizarLotesVencidos(ctx context.Context) error
 }
 
 type LoteProductoService interface {
@@ -21,6 +22,7 @@ type LoteProductoService interface {
 	ModificarLoteProducto(ctx context.Context, id *int, request *domain.LoteProductoRequest) error
 	ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error)
 	ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error)
+	ActualizarLotesVencidos(ctx context.Context) error
 }
 
 type LoteProductoHandler interface {

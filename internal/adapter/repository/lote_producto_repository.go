@@ -19,6 +19,34 @@ type LoteProductoRepository struct {
 	pool *pgxpool.Pool
 }
 
+func (l LoteProductoRepository) ActualizarLotesVencidos(ctx context.Context) error {
+	tx, err := l.pool.Begin(ctx)
+	if err != nil {
+		log.Println("Error al iniciar transacción de lotes vencidos:", err)
+		return datatype.NewInternalServerError("Error al iniciar transacción de lotes vencidos")
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+	query := `UPDATE lote_producto lp SET estado = 'Vencido' WHERE CURRENT_TIMESTAMP >= fecha_vencimiento AND estado != 'Vencido'`
+	_, err = tx.Exec(ctx, query)
+	if err != nil {
+		log.Println("Error al actualizar lotes vencidos:", err)
+		return datatype.NewInternalServerError("Error al actualizar lotes vencidos")
+	}
+	// Confirmamos la transacción
+	err = tx.Commit(ctx)
+	if err != nil {
+		log.Println("Error al confirmar transacción de lotes vencidos:", err)
+		return datatype.NewInternalServerError("Error al confirmar transacción de lotes vencidos")
+	}
+	committed = true
+	return nil
+}
+
 func (l LoteProductoRepository) ListarLotesProductosByProductoId(ctx context.Context, productoId *uuid.UUID) (*[]domain.LoteProductoSimple, error) {
 	query := `SELECT lp.id,lp.lote,lp.fecha_vencimiento FROM lote_producto lp WHERE lp.producto_id = $1`
 	rows, err := l.pool.Query(ctx, query, productoId.String())
