@@ -17,9 +17,7 @@ func main() {
 	deps := setup.GetDependencies()
 
 	// Inicializar el servidor HTTP
-	httpServer := server.NewServer(
-		deps.Handler,
-	)
+	httpServer := server.NewServer(deps.Handler)
 
 	// Iniciar el servidor
 	httpServer.Initialize()
