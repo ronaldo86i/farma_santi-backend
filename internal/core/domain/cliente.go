@@ -40,4 +40,5 @@ type ClienteSimple struct {
 	Id          uint    `json:"id"`
 	NitCi       *uint   `json:"nitCi"`
 	Complemento *string `json:"complemento"`
+	RazonSocial string  `json:"razonSocial"`
 }

@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS detalle_compra (
 
 -- venta
 CREATE TABLE IF NOT EXISTS venta (
-    id          SERIAL PRIMARY KEY,
+                                     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     estado      estado_venta NOT NULL DEFAULT 'Realizada',
     codigo      TEXT UNIQUE,
     cliente_id  INT           NOT NULL REFERENCES cliente(id),
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS venta (
 
 -- detalle_venta
 CREATE TABLE IF NOT EXISTS detalle_venta (
-    id          SERIAL PRIMARY KEY,
+                                             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     venta_id    INT    NOT NULL REFERENCES venta(id)          ON DELETE CASCADE,
     lote_id     INT    NOT NULL REFERENCES lote_producto(id),
     cantidad    INT    NOT NULL CHECK (cantidad > 0),

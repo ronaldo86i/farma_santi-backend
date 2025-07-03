@@ -408,11 +408,55 @@ FROM compra c
 GROUP BY c.id, c.comentario, c.estado, c.total, p.id, u.id
 ORDER BY c.id DESC;
 
+-- Vista: view_venta_info
+
+CREATE OR REPLACE VIEW view_venta_info AS
+SELECT v.id,
+       v.estado,
+       v.codigo,
+       v.fecha,
+       V.deleted_at,
+       -- Usuario como JSON
+       jsonb_build_object(
+               'id', u.id,
+               'username', u.username,
+               'estado', u.estado
+       ) AS usuario,
+       -- Cliente como JSON
+       jsonb_build_object(
+               'id', c.id,
+               'razonSocial', c.razon_social,
+               'ciNit', c.nit_ci,
+               'complemento', c.complemento
+       ) AS cliente
+FROM venta v
+         INNER JOIN usuario u on v.usuario_id = u.id
+         INNER JOIN cliente c on v.cliente_id = c.id;
+
+-- Vista: view_detalle_venta_producto_detail
+CREATE OR REPLACE VIEW view_detalle_venta_producto_detail AS
+SELECT dv.id,
+       dv.venta_id,
+       dv.cantidad,
+       dv.precio,
+       (dv.cantidad * dv.precio) AS total,
+       jsonb_build_object(
+               'id', p.id,
+               'nombreComercial', p.nombre_comercial
+       )                         AS producto,
+       ff.nombre                 AS forma_farmacuentica,
+       l.nombre                  AS laboratorio
+FROM detalle_venta dv
+         INNER JOIN lote_producto lp ON lp.id = dv.lote_id
+         INNER JOIN producto p ON p.id = lp.producto_id
+         INNER JOIN forma_farmaceutica ff on ff.id = p.forma_farmaceutica_id
+         INNER JOIN laboratorio l on l.id = p.laboratorio_id;
+
+
 -- =============================================================================
 -- FUNCIONES TRIGGER
 -- =============================================================================
 
--- Función: validar_fecha_vencimiento_lote
 -- Función: validar_fecha_vencimiento_lote
 CREATE OR REPLACE FUNCTION validar_fecha_vencimiento_lote()
     RETURNS trigger AS $$
@@ -427,22 +471,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Función: generar_codigo_venta
-CREATE OR REPLACE FUNCTION generar_codigo_venta()
-    RETURNS TRIGGER AS $$
-BEGIN
-    NEW.codigo := 'VENT-' || LPAD(NEW.id::text, 5, '0');
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- CREATE OR REPLACE FUNCTION generar_codigo_venta()
+--     RETURNS TRIGGER AS $$
+-- BEGIN
+--     NEW.codigo := 'VENT-' || LPAD(NEW.id::text, 9, '0');
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
--- Función: generar_codigo_venta
-CREATE OR REPLACE FUNCTION generar_codigo_venta()
-    RETURNS TRIGGER AS $$
-BEGIN
-NEW.codigo := 'VENT-' || LPAD(NEW.id::text, 5, '0');
-RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 -- =============================================================================
 -- TRIGGERS
@@ -457,14 +493,14 @@ CREATE TRIGGER trigger_fecha_vencimiento_lote
     FOR EACH ROW EXECUTE FUNCTION validar_fecha_vencimiento_lote();
 
 -- Eliminar trigger existente si existe
-DROP TRIGGER IF EXISTS trigger_generar_codigo_venta ON venta;
+-- DROP TRIGGER IF EXISTS trigger_generar_codigo_venta ON venta;
 
 -- Crear trigger para generar código de venta
-CREATE TRIGGER trigger_generar_codigo_venta
-    BEFORE INSERT ON venta
-    FOR EACH ROW
-    WHEN (NEW.codigo IS NULL)
-EXECUTE FUNCTION generar_codigo_venta();
+-- CREATE TRIGGER trigger_generar_codigo_venta
+--     BEFORE INSERT ON venta
+--     FOR EACH ROW
+--     WHEN (NEW.codigo IS NULL)
+-- EXECUTE FUNCTION generar_codigo_venta();
 
 -- Confirmar la transacción
 COMMIT;
@@ -487,6 +523,8 @@ COMMIT;
 -- 3. view_lotes_con_productos
 -- 4. view_compras_detalle
 -- 5. view_compra_con_detalles
+-- 6. view_venta_info
+-- 7. view_detalle_venta_producto_detail
 --
 -- Triggers creados:
 -- 1. trigger_fecha_vencimiento_lote (lote_producto)

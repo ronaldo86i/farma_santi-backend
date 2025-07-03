@@ -22,6 +22,7 @@ type Repository struct {
 	Proveedor       port.ProveedorRepository
 	Rol             port.RolRepository
 	Usuario         port.UsuarioRepository
+	Venta           port.VentaRepository
 }
 
 type Service struct {
@@ -36,6 +37,7 @@ type Service struct {
 	Proveedor       port.ProveedorService
 	Rol             port.RolService
 	Usuario         port.UsuarioService
+	Venta           port.VentaService
 }
 
 type Handler struct {
@@ -50,6 +52,7 @@ type Handler struct {
 	Proveedor       port.ProveedorHandler
 	Rol             port.RolHandler
 	Usuario         port.UsuarioHandler
+	Venta           port.VentaHandler
 }
 
 type Dependencies struct {
@@ -109,6 +112,7 @@ func Init() {
 		repositories.PrincipioActivo = repository.NewPrincipioActivoRepository(pool)
 		repositories.Compras = repository.NewCompraRepository(pool)
 		repositories.Cliente = repository.NewClienteRepository(pool)
+		repositories.Venta = repository.NewVentaRepository(pool)
 
 		// Services
 		services.Auth = service.NewAuthService(repositories.Usuario)
@@ -122,6 +126,7 @@ func Init() {
 		services.PrincipioActivo = service.NewPrincipioActivoService(repositories.PrincipioActivo)
 		services.Compras = service.NewCompraService(repositories.Compras)
 		services.Cliente = service.NewClienteService(repositories.Cliente)
+		services.Venta = service.NewVentaService(repositories.Venta)
 
 		// Handlers
 		handlers.Auth = handler.NewAuthHandler(services.Auth)
@@ -135,6 +140,7 @@ func Init() {
 		handlers.PrincipioActivo = handler.NewPrincipioActivoHandler(services.PrincipioActivo)
 		handlers.Compra = handler.NewCompraHandler(services.Compras)
 		handlers.Cliente = handler.NewClienteHandler(services.Cliente)
+		handlers.Venta = handler.NewVentaHandler(services.Venta)
 
 		instance = d
 	})

@@ -56,7 +56,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1PrincipiosActivos := v1.Group("/principios-activos")
 	v1Compras := v1.Group("/compras")
 	v1Clientes := v1.Group("/clientes")
-
+	v1Ventas := v1.Group("/ventas")
 	// path: /api/v1/usuarios/me
 	v1UsuariosMe.Get("", limited(20, 5*time.Minute, 5*time.Second), s.handlers.Usuario.ObtenerUsuarioActual)
 
@@ -71,7 +71,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1LotesProductos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1PrincipiosActivos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1Compras.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
-
+	v1Ventas.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN"))
 	// path: /api/v1/auth
 	v1Auth.Post("/login", limited(5, 5*time.Minute, 5*time.Minute), s.handlers.Auth.Login)
 	v1Auth.Get("/logout", limited(30, 5*time.Minute, 5*time.Second), s.handlers.Auth.Logout)
@@ -162,4 +162,11 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Clientes.Put("/:clienteId", limite, s.handlers.Cliente.ModificarClienteById)
 	v1Clientes.Patch("/estado/habilitar/:clienteId", limite, s.handlers.Cliente.HabilitarCliente)
 	v1Clientes.Patch("/estado/deshabilitar/:clienteId", limite, s.handlers.Cliente.DeshabilitarCliente)
+
+	//path: /api/v1/ventas
+	v1Ventas.Get("", limite, s.handlers.Venta.ObtenerListaVentas)
+	v1Ventas.Get("/:ventaId", limite, s.handlers.Venta.ObtenerVentaById)
+	v1Ventas.Post("/registrar", limite, s.handlers.Venta.RegistrarVenta)
+	v1Ventas.Patch("/anular/:ventaId", limite, s.handlers.Venta.AnularVentaById)
+	v1Ventas.Post("/facturar/:ventaId", limite, s.handlers.Venta.FacturarVentaById)
 }

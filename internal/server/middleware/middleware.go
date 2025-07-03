@@ -3,17 +3,14 @@ package middleware
 import (
 	"context"
 	"errors"
-	"farma-santi_backend/internal/adapter/repository"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/util"
-	"farma-santi_backend/internal/postgresql"
+	"farma-santi_backend/internal/server/setup"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
 )
-
-var db = postgresql.GetDB()
 
 // HostnameMiddleware guarda y registra el hostname completo de la petición
 func HostnameMiddleware(c *fiber.Ctx) error {
@@ -54,7 +51,7 @@ func VerifyUserAdminMiddleware(c *fiber.Ctx) error {
 func VerifyRolesMiddleware(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		username := c.UserContext().Value(util.ContextUsernameKey).(string)
-		user, err := repository.NewUsuarioRepository(db).ObtenerUsuarioDetalleByUsername(c.UserContext(), &username)
+		user, err := setup.GetDependencies().Repository.Usuario.ObtenerUsuarioDetalleByUsername(c.UserContext(), &username)
 		if err != nil {
 			log.Print(err.Error())
 			var errorResponse *datatype.ErrorResponse

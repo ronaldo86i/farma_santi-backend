@@ -89,3 +89,7 @@ type ProductoSimple struct {
 	Laboratorio       string    `json:"laboratorio,omitempty"`
 	FormaFarmaceutica string    `json:"formaFarmaceutica,omitempty"`
 }
+
+type ProductoId struct {
+	Id string `json:"id"`
+}
