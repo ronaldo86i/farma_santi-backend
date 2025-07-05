@@ -16,11 +16,11 @@ func (v VentaService) ObtenerListaVentas(ctx context.Context) (*[]domain.VentaIn
 	return v.ventaRepository.ObtenerListaVentas(ctx)
 }
 
-func (v VentaService) RegistraVenta(ctx context.Context, request *domain.VentaRequest) error {
+func (v VentaService) RegistraVenta(ctx context.Context, request *domain.VentaRequest) (*int64, error) {
 	val := ctx.Value(util.ContextUserIdKey)
 	userIdFloat, ok := val.(int)
 	if !ok {
-		return datatype.NewBadRequestError("ID de usuario inválido o no encontrado en el contexto")
+		return nil, datatype.NewBadRequestError("ID de usuario inválido o no encontrado en el contexto")
 	}
 
 	request.UsuarioId = uint(userIdFloat)

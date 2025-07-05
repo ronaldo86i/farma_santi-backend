@@ -440,17 +440,34 @@ SELECT dv.id,
        dv.cantidad,
        dv.precio,
        (dv.cantidad * dv.precio) AS total,
+
        jsonb_build_object(
                'id', p.id,
                'nombreComercial', p.nombre_comercial
        )                         AS producto,
+
+       -- Como dv solo tiene 1 lote por registro, solo un lote aquí
+       jsonb_agg(
+               jsonb_build_object(
+                       'id', lp.id,
+                       'lote', lp.lote,
+                       'fechaVencimiento', lp.fecha_vencimiento::timestamptz,
+                       'cantidad', dv.cantidad
+               )
+       )                         AS lotes,
+
        ff.nombre                 AS forma_farmacuentica,
        l.nombre                  AS laboratorio
+
 FROM detalle_venta dv
-         INNER JOIN lote_producto lp ON lp.id = dv.lote_id
+         RIGHT JOIN lote_producto lp ON lp.id = dv.lote_id
          INNER JOIN producto p ON p.id = lp.producto_id
-         INNER JOIN forma_farmaceutica ff on ff.id = p.forma_farmaceutica_id
-         INNER JOIN laboratorio l on l.id = p.laboratorio_id;
+         INNER JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id
+         INNER JOIN laboratorio l ON l.id = p.laboratorio_id
+
+GROUP BY dv.id, dv.venta_id, dv.cantidad, dv.precio,
+         p.id, p.nombre_comercial,
+         ff.nombre, l.nombre, lp.id;
 
 
 -- =============================================================================
@@ -469,15 +486,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
--- Función: generar_codigo_venta
--- CREATE OR REPLACE FUNCTION generar_codigo_venta()
---     RETURNS TRIGGER AS $$
--- BEGIN
---     NEW.codigo := 'VENT-' || LPAD(NEW.id::text, 9, '0');
---     RETURN NEW;
--- END;
--- $$ LANGUAGE plpgsql;
 
 
 -- =============================================================================
@@ -515,7 +523,6 @@ COMMIT;
 -- 4. obtener_producto_detalle_by_id(arg_producto_id UUID, url TEXT)
 -- 5. obtener_lote_by_id(p_lote_id INT)
 -- 6. validar_fecha_vencimiento_lote() [TRIGGER FUNCTION]
--- 7. generar_codigo_venta() [TRIGGER FUNCTION]
 --
 -- Vistas creadas:
 -- 1. view_lista_usuarios

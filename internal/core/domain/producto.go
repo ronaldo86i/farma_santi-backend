@@ -93,3 +93,7 @@ type ProductoSimple struct {
 type ProductoId struct {
 	Id string `json:"id"`
 }
+
+type VentaResponse struct {
+	VentaId int64 `json:"ventaId"`
+}

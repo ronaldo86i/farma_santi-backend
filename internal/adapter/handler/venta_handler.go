@@ -34,7 +34,7 @@ func (v VentaHandler) RegistrarVenta(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
-	err = v.ventaService.RegistraVenta(c.UserContext(), venta)
+	ventaId, err := v.ventaService.RegistraVenta(c.UserContext(), venta)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -47,7 +47,7 @@ func (v VentaHandler) RegistrarVenta(c *fiber.Ctx) error {
 		}
 		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
 	}
-	return c.Status(http.StatusCreated).JSON(util.NewMessage("Venta registrada correctamente"))
+	return c.Status(http.StatusCreated).JSON(util.NewMessageData(domain.VentaResponse{VentaId: *ventaId}, "Venta registrada correctamente"))
 }
 
 func (v VentaHandler) ObtenerVentaById(c *fiber.Ctx) error {

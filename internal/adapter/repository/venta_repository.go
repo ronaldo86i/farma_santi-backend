@@ -22,7 +22,7 @@ func (v VentaRepository) FacturarVentaById(ctx context.Context, id *int) error {
 }
 
 func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.VentaInfo, error) {
-	query := `SELECT v.id,v.codigo,v.estado,v.fecha,v.usuario,v.cliente FROM view_venta_info v`
+	query := `SELECT v.id,v.codigo,v.estado,v.fecha,v.usuario,v.cliente,v.deleted_at FROM view_venta_info v`
 	rows, err := v.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -31,7 +31,7 @@ func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.Vent
 	var list = make([]domain.VentaInfo, 0)
 	for rows.Next() {
 		var item domain.VentaInfo
-		err = rows.Scan(&item.Id, &item.Codigo, &item.Estado, &item.Fecha, &item.Usuario, &item.Cliente)
+		err = rows.Scan(&item.Id, &item.Codigo, &item.Estado, &item.Fecha, &item.Usuario, &item.Cliente, &item.DeletedAt)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
@@ -40,15 +40,15 @@ func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.Vent
 	return &list, nil
 }
 
-func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.VentaRequest) error {
+func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.VentaRequest) (*int64, error) {
 	// Validar que la venta tenga detalles
 	if len(request.Detalles) == 0 {
-		return datatype.NewBadRequestError("La venta debe tener al menos un detalle")
+		return nil, datatype.NewBadRequestError("La venta debe tener al menos un detalle")
 	}
 
 	tx, err := v.pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	defer func() {
@@ -66,7 +66,7 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
         )
     `).Scan(&nextNum)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	codigo := fmt.Sprintf("VENT-%09d", nextNum)
 
@@ -78,22 +78,15 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
         RETURNING id
     `, request.ClienteId, request.UsuarioId, codigo).Scan(&ventaId)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	totalVenta := 0.0
 
-	// Estructura para lotes de productos
-	type LoteProducto struct {
-		Id          uint
-		Stock       uint
-		PrecioVenta float64
-	}
-
 	// Procesar cada detalle de venta
 	for _, item := range request.Detalles {
 		if item.Cantidad <= 0 {
-			return datatype.NewBadRequestError("La cantidad debe ser mayor a cero")
+			return nil, datatype.NewBadRequestError("La cantidad debe ser mayor a cero")
 		}
 
 		// Obtener lotes disponibles ordenados por FEFO (First Expired, First Out) con bloqueo
@@ -108,22 +101,22 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
             FOR UPDATE OF lp
         `, item.ProductoId)
 		if err != nil {
-			return datatype.NewInternalServerErrorGeneric()
+			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 
-		var lotes []LoteProducto
+		var lotes []domain.VentaLoteProductoDAO
 		for rows.Next() {
-			var lote LoteProducto
+			var lote domain.VentaLoteProductoDAO
 			if err := rows.Scan(&lote.Id, &lote.Stock, &lote.PrecioVenta); err != nil {
 				rows.Close()
-				return datatype.NewInternalServerErrorGeneric()
+				return nil, datatype.NewInternalServerErrorGeneric()
 			}
 			lotes = append(lotes, lote)
 		}
 		rows.Close()
 
 		if len(lotes) == 0 {
-			return datatype.NewNotFoundErrorWithData("Producto sin stock disponible",
+			return nil, datatype.NewNotFoundErrorWithData("Producto sin stock disponible",
 				domain.ProductoId{Id: item.ProductoId})
 		}
 
@@ -134,7 +127,7 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
 		}
 
 		if stockTotal < item.Cantidad {
-			return datatype.NewNotFoundErrorWithData(
+			return nil, datatype.NewNotFoundErrorWithData(
 				fmt.Sprintf("Stock insuficiente. Disponible: %d, Solicitado: %d", stockTotal, item.Cantidad),
 				domain.ProductoId{Id: item.ProductoId})
 		}
@@ -159,7 +152,7 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
                 VALUES ($1, $2, $3, $4)
             `, ventaId, lote.Id, cantidadUsar, lote.PrecioVenta)
 			if err != nil {
-				return datatype.NewInternalServerErrorGeneric()
+				return nil, datatype.NewInternalServerErrorGeneric()
 			}
 
 			// Actualizar stock del lote con verificación
@@ -169,10 +162,10 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
                 WHERE id = $2 AND stock >= $1
             `, cantidadUsar, lote.Id)
 			if err != nil {
-				return datatype.NewInternalServerErrorGeneric()
+				return nil, datatype.NewInternalServerErrorGeneric()
 			}
 			if result.RowsAffected() == 0 {
-				return datatype.NewConflictError("Stock insuficiente en el lote")
+				return nil, datatype.NewConflictError("Stock insuficiente en el lote")
 			}
 
 			// Actualizar stock del producto principal con verificación
@@ -182,10 +175,10 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
                 WHERE id = $2 AND stock >= $1
             `, cantidadUsar, item.ProductoId)
 			if err != nil {
-				return datatype.NewInternalServerErrorGeneric()
+				return nil, datatype.NewInternalServerErrorGeneric()
 			}
 			if result.RowsAffected() == 0 {
-				return datatype.NewConflictError("Stock insuficiente en el producto")
+				return nil, datatype.NewConflictError("Stock insuficiente en el producto")
 			}
 
 			subtotalItem += float64(cantidadUsar) * lote.PrecioVenta
@@ -203,37 +196,38 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
         WHERE id = $2
     `, totalVenta, ventaId)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	return nil
+	return &ventaId, nil
 }
 
 func (v VentaRepository) ObtenerVentaById(ctx context.Context, id *int) (*domain.VentaDetail, error) {
 	query := `
-SELECT
-    v.id,
-    v.fecha,
-    v.estado,
-    v.deleted_at,
-    v.usuario,
-    v.cliente,
-    (
-        SELECT jsonb_agg(d)
-        FROM view_detalle_venta_producto_detail d
-        WHERE d.venta_id = v.id
-    ) AS detalles
-FROM view_venta_info v
-WHERE v.id = $1
-LIMIT 1;
+	SELECT
+		v.id,
+		v.codigo,
+		v.fecha,
+		v.estado,
+		v.deleted_at,
+		v.usuario,
+		v.cliente,
+		(
+			SELECT jsonb_agg(d)
+			FROM view_detalle_venta_producto_detail d
+			WHERE d.venta_id = v.id
+		) AS detalles
+	FROM view_venta_info v
+	WHERE v.id = $1
+	LIMIT 1;
 `
 
 	var venta domain.VentaDetail
-	err := v.pool.QueryRow(ctx, query, *id).Scan(&venta.Id, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Usuario, &venta.Cliente, &venta.Detalles)
+	err := v.pool.QueryRow(ctx, query, *id).Scan(&venta.Id, &venta.Codigo, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Usuario, &venta.Cliente, &venta.Detalles)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datatype.NewNotFoundError("Venta no encontrada")
@@ -259,8 +253,7 @@ func (v VentaRepository) AnularVentaById(ctx context.Context, id *int) error {
 	// Verificar que la venta existe y obtener su estado
 	var existe bool
 	var estadoActual string
-	query := `SELECT EXISTS(SELECT 1 FROM venta WHERE id = $1), 
-                     (SELECT estado FROM venta WHERE id = $1) as estado`
+	query := `SELECT EXISTS(SELECT 1 FROM venta WHERE id = $1), (SELECT estado FROM venta WHERE id = $1) as estado`
 	if err := tx.QueryRow(ctx, query, *id).Scan(&existe, &estadoActual); err != nil {
 		log.Println("Error al verificar existencia de venta:", err)
 		return datatype.NewInternalServerErrorGeneric()

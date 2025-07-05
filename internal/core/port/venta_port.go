@@ -8,7 +8,7 @@ import (
 
 type VentaRepository interface {
 	ObtenerListaVentas(ctx context.Context) (*[]domain.VentaInfo, error)
-	RegistraVenta(ctx context.Context, request *domain.VentaRequest) error
+	RegistraVenta(ctx context.Context, request *domain.VentaRequest) (*int64, error)
 	ObtenerVentaById(ctx context.Context, id *int) (*domain.VentaDetail, error)
 	AnularVentaById(ctx context.Context, id *int) error
 	FacturarVentaById(ctx context.Context, id *int) error
@@ -16,7 +16,7 @@ type VentaRepository interface {
 
 type VentaService interface {
 	ObtenerListaVentas(ctx context.Context) (*[]domain.VentaInfo, error)
-	RegistraVenta(ctx context.Context, request *domain.VentaRequest) error
+	RegistraVenta(ctx context.Context, request *domain.VentaRequest) (*int64, error)
 	ObtenerVentaById(ctx context.Context, id *int) (*domain.VentaDetail, error)
 	AnularVentaById(ctx context.Context, id *int) error
 	FacturarVentaById(ctx context.Context, id *int) error
