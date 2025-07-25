@@ -7,11 +7,9 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
-	"time"
 )
 
 type RolRepository struct {
@@ -24,10 +22,12 @@ func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
@@ -37,7 +37,7 @@ func (r RolRepository) HabilitarRol(ctx context.Context, id *int) error {
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -51,9 +51,12 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
@@ -63,7 +66,7 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -75,11 +78,12 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, query, rolRequestUpdate.Nombre, id)
 	if err != nil {
@@ -94,38 +98,41 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
 func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolRequest) error {
 	// Primero, verificamos si el rol ya existe en la base de datos
-	queryCheck := `SELECT deleted_at FROM rol WHERE nombre = $1`
-	var deletedAt *time.Time
-	err := r.pool.QueryRow(ctx, queryCheck, rolRequest.Nombre).Scan(&deletedAt)
+	query := `SELECT 1 FROM rol WHERE nombre = $1 LIMIT 1;`
+	var existe bool
+	err := r.pool.QueryRow(ctx, query, rolRequest.Nombre).Scan(&existe)
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		// Error al ejecutar la consulta
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Si el rol existe y no está eliminado
-	if err == nil && deletedAt == nil {
+	if existe == true {
 		return datatype.NewConflictError("Ya existe el rol")
 	}
-
-	queryInsert := `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id, nombre, created_at, deleted_at;`
+	var rolId uint
+	query = `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id;`
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		log.Print("Error al iniciar transacción:", err)
 		return datatype.NewInternalServerErrorGeneric()
 	}
-	rol := domain.Rol{
-		Nombre:    rolRequest.Nombre,
-		DeletedAt: nil,
-	}
 
-	err = tx.QueryRow(ctx, queryInsert, rol.Nombre).Scan(&rol.Id, &rol.Nombre, &rol.CreatedAt, &rol.DeletedAt)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	err = tx.QueryRow(ctx, query, rolRequest.Nombre).Scan(&rolId)
 	if err != nil {
 		// Manejo de error por nombre duplicado (conflicto)
 		var pgErr *pgconn.PgError
@@ -138,7 +145,7 @@ func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolR
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 

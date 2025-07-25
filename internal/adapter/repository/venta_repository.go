@@ -22,7 +22,7 @@ func (v VentaRepository) FacturarVentaById(ctx context.Context, id *int) error {
 }
 
 func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.VentaInfo, error) {
-	query := `SELECT v.id,v.codigo,v.estado,v.fecha,v.usuario,v.cliente,v.deleted_at FROM view_venta_info v`
+	query := `SELECT v.id,v.codigo,v.estado,v.fecha,v.usuario,v.cliente,v.deleted_at,v.total FROM view_venta_info v ORDER BY v.codigo DESC`
 	rows, err := v.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -31,7 +31,7 @@ func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.Vent
 	var list = make([]domain.VentaInfo, 0)
 	for rows.Next() {
 		var item domain.VentaInfo
-		err = rows.Scan(&item.Id, &item.Codigo, &item.Estado, &item.Fecha, &item.Usuario, &item.Cliente, &item.DeletedAt)
+		err = rows.Scan(&item.Id, &item.Codigo, &item.Estado, &item.Fecha, &item.Usuario, &item.Cliente, &item.DeletedAt, &item.Total)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
@@ -189,12 +189,7 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
 	}
 
 	// Actualizar total de la venta
-	_, err = tx.Exec(ctx, `
-        UPDATE venta 
-        SET total = $1,
-            fecha = NOW()
-        WHERE id = $2
-    `, totalVenta, ventaId)
+	_, err = tx.Exec(ctx, `UPDATE venta SET total = $1,fecha = NOW() WHERE id = $2 `, totalVenta, ventaId)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -214,6 +209,7 @@ func (v VentaRepository) ObtenerVentaById(ctx context.Context, id *int) (*domain
 		v.fecha,
 		v.estado,
 		v.deleted_at,
+		v.total,
 		v.usuario,
 		v.cliente,
 		(
@@ -227,7 +223,7 @@ func (v VentaRepository) ObtenerVentaById(ctx context.Context, id *int) (*domain
 `
 
 	var venta domain.VentaDetail
-	err := v.pool.QueryRow(ctx, query, *id).Scan(&venta.Id, &venta.Codigo, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Usuario, &venta.Cliente, &venta.Detalles)
+	err := v.pool.QueryRow(ctx, query, *id).Scan(&venta.Id, &venta.Codigo, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Total, &venta.Usuario, &venta.Cliente, &venta.Detalles)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datatype.NewNotFoundError("Venta no encontrada")

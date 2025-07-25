@@ -57,11 +57,11 @@ func (c ClienteRepository) ObtenerClienteById(ctx context.Context, id *int) (*do
 	return &cliente, nil
 }
 
-func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) error {
+func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error) {
 	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	committed := false
 	defer func() {
@@ -83,18 +83,19 @@ func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain
 
 	switch request.Tipo {
 	case "NIT":
-		query = `INSERT INTO cliente(nit_ci, tipo, razon_social, email, estado, telefono) VALUES ($1, $2, $3, $4, $5, $6)`
+		query = `INSERT INTO cliente(nit_ci, tipo, razon_social, email, estado, telefono) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 		params = []interface{}{nitCi, request.Tipo, request.RazonSocial, request.Email, "Activo", request.Telefono}
 
 	case "CI":
-		query = `INSERT INTO cliente(nit_ci, complemento, tipo, razon_social, email, estado, telefono) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		query = `INSERT INTO cliente(nit_ci, complemento, tipo, razon_social, email, estado, telefono) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
 		params = []interface{}{nitCi, request.Complemento, request.Tipo, request.RazonSocial, request.Email, "Activo", request.Telefono}
 	default:
 		log.Printf("Tipo de cliente desconocido: %s", request.Tipo)
-		return datatype.NewBadRequestError("Tipo de cliente no válido")
+		return nil, datatype.NewBadRequestError("Tipo de cliente no válido")
 	}
 
-	_, err = tx.Exec(ctx, query, params...)
+	var clienteId int
+	err = tx.QueryRow(ctx, query, params...).Scan(&clienteId)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -103,29 +104,29 @@ func (c ClienteRepository) RegistrarCliente(ctx context.Context, request *domain
 			switch pgErr.Code {
 			case "23505": // unique_violation
 				if pgErr.ConstraintName == "idx_unique_ci_complemento" {
-					return datatype.NewConflictError("Ya existe un cliente con ese CI y complemento")
+					return nil, datatype.NewConflictError("Ya existe un cliente con ese CI y complemento")
 				} else if pgErr.ConstraintName == "idx_unique_nit" {
-					return datatype.NewConflictError("Ya existe un cliente con ese NIT")
+					return nil, datatype.NewConflictError("Ya existe un cliente con ese NIT")
 				}
 			case "23514": // check_violation
-				return datatype.NewBadRequestError(fmt.Sprintf("Violación de regla de negocio: %s", pgErr.ConstraintName))
+				return nil, datatype.NewBadRequestError(fmt.Sprintf("Violación de regla de negocio: %s", pgErr.ConstraintName))
 			case "23502": // not_null_violation
-				return datatype.NewBadRequestError(fmt.Sprintf("Falta un campo obligatorio: %s", pgErr.ColumnName))
+				return nil, datatype.NewBadRequestError(fmt.Sprintf("Falta un campo obligatorio: %s", pgErr.ColumnName))
 			case "22P02": // invalid_text_representation (por ejemplo, error al insertar texto donde se espera número)
-				return datatype.NewBadRequestError("Tipo de dato inválido")
+				return nil, datatype.NewBadRequestError("Tipo de dato inválido")
 			}
 		}
 
 		log.Printf("Error inesperado al registrar cliente: %v", err)
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		log.Printf("Error al confirmar transacción de cliente: %v", err)
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	committed = true
-	return nil
+	return &clienteId, nil
 }
 
 func (c ClienteRepository) ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error {

@@ -16,6 +16,7 @@ type LoteProductoInfo struct {
 	Lote             string         `json:"lote"`
 	FechaVencimiento time.Time      `json:"fechaVencimiento"`
 	Stock            int            `json:"stock"`
+	Estado           string         `json:"estado"`
 	Producto         ProductoSimple `json:"producto"`
 }
 
@@ -24,6 +25,7 @@ type LoteProductoDetail struct {
 	Lote             string       `json:"lote"`
 	FechaVencimiento time.Time    `json:"fechaVencimiento"`
 	Stock            int          `json:"stock"`
+	Estado           string       `json:"estado"`
 	Producto         ProductoInfo `json:"producto"`
 }
 

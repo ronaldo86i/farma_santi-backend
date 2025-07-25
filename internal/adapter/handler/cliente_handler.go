@@ -51,7 +51,7 @@ func (c2 ClienteHandler) RegistrarCliente(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
-	err = c2.clienteService.RegistrarCliente(c.UserContext(), &request)
+	clienteId, err := c2.clienteService.RegistrarCliente(c.UserContext(), &request)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -60,7 +60,7 @@ func (c2 ClienteHandler) RegistrarCliente(c *fiber.Ctx) error {
 		}
 		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
 	}
-	return c.Status(http.StatusOK).JSON(util.NewMessage("Cliente registrado correctamente"))
+	return c.Status(http.StatusOK).JSON(util.NewMessageData(domain.ClienteId{Id: *clienteId}, "Cliente registrado correctamente"))
 }
 
 func (c2 ClienteHandler) ModificarClienteById(c *fiber.Ctx) error {

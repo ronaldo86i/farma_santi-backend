@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"log"
 	"time"
 )
 
@@ -101,16 +102,23 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, queryInsert, laboratorioRequest.Nombre, laboratorioRequest.Direccion)
+	if err != nil {
+		log.Println("Error al insertar Laboratorio:", err)
+		return datatype.NewInternalServerErrorGeneric()
+	}
 	// Confirmar la transacción
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -120,9 +128,12 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, query, laboratorioRequest.Nombre, laboratorioRequest.Direccion, *id)
 	if err != nil {
@@ -145,7 +156,7 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -177,9 +188,12 @@ func (l LaboratorioRepository) DeshabilitarLaboratorio(ctx context.Context, id *
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	_, err = tx.Exec(ctx, query, *id)
 	if err != nil {
@@ -189,7 +203,7 @@ func (l LaboratorioRepository) DeshabilitarLaboratorio(ctx context.Context, id *
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 

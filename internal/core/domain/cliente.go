@@ -42,3 +42,7 @@ type ClienteSimple struct {
 	Complemento *string `json:"complemento"`
 	RazonSocial string  `json:"razonSocial"`
 }
+
+type ClienteId struct {
+	Id int `json:"id"`
+}

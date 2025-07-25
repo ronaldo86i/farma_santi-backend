@@ -19,9 +19,9 @@ type CompraRepository struct {
 }
 
 func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error) {
-	query := `SELECT v.id,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.created_at,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
+	query := `SELECT v.id,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.fecha,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
 	var compra domain.CompraDetail
-	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.CreatedAt, &compra.DeletedAt, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.Fecha, &compra.DeletedAt, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al obtener compra:", err.Error())
 		if errors.Is(err, sql.ErrNoRows) {
@@ -331,7 +331,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 }
 
 func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error) {
-	query := `SELECT c.id, c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.created_at FROM view_listar_compras c`
+	query := `SELECT c.id, c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.fecha FROM view_listar_compras c`
 	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.Co
 
 	for rows.Next() {
 		var item domain.CompraInfo
-		err = rows.Scan(&item.Id, &item.Comentario, &item.Estado, &item.Total, &item.Proveedor, &item.Usuario, &item.CreatedAt)
+		err = rows.Scan(&item.Id, &item.Comentario, &item.Estado, &item.Total, &item.Proveedor, &item.Usuario, &item.Fecha)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}

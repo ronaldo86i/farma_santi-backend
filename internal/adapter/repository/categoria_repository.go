@@ -51,6 +51,12 @@ func (c CategoriaRepository) HabilitarCategoria(ctx context.Context, categoriaId
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
+	commited := false
+	defer func() {
+		if !commited {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	//Ejecutar transacción
 	_, err = tx.Exec(ctx, query, *categoriaId)
 	if err != nil {
@@ -61,6 +67,7 @@ func (c CategoriaRepository) HabilitarCategoria(ctx context.Context, categoriaId
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	commited = true
 	return nil
 }
 
@@ -71,6 +78,12 @@ func (c CategoriaRepository) DeshabilitarCategoria(ctx context.Context, categori
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
+	commited := false
+	defer func() {
+		if !commited {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	//Ejecutar transacción
 	_, err = tx.Exec(ctx, query, *categoriaId)
 	if err != nil {
@@ -81,6 +94,7 @@ func (c CategoriaRepository) DeshabilitarCategoria(ctx context.Context, categori
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	commited = true
 	return nil
 }
 

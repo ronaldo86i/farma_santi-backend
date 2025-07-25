@@ -9,7 +9,7 @@ import (
 type ClienteRepository interface {
 	ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error)
 	ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error)
-	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) error
+	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error)
 	ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error
 	HabilitarCliente(ctx context.Context, id *int) error
 	DeshabilitarCliente(ctx context.Context, id *int) error
@@ -18,7 +18,7 @@ type ClienteRepository interface {
 type ClienteService interface {
 	ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error)
 	ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error)
-	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) error
+	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error)
 	ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error
 	HabilitarCliente(ctx context.Context, id *int) error
 	DeshabilitarCliente(ctx context.Context, id *int) error

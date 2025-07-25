@@ -8,15 +8,17 @@ BEGIN;
 -- Función: obtener_usuario_detalle_by_id
 CREATE OR REPLACE FUNCTION obtener_usuario_detalle_by_id(p_usuario_id INT)
     RETURNS TABLE (
-                      id INT,
+                      id       INT,
                       username VARCHAR,
-                      estado tipo_estado,
-                      persona JSONB,
-                      roles JSONB,
+                      estado   tipo_estado,
+                      persona  JSONB,
+                      roles    JSONB,
                       created_at timestamptz,
                       updated_at timestamptz,
                       deleted_at timestamptz
-                  ) AS $$
+                  )
+AS
+$$
 BEGIN
     RETURN QUERY
         SELECT
@@ -229,6 +231,7 @@ CREATE OR REPLACE FUNCTION obtener_lote_by_id(p_lote_id INT)
                       id INT,
                       lote varchar,
                       stock BIGINT,
+                      estado lote_estado,
                       fecha_vencimiento DATE,
                       producto JSON
                   ) AS $$
@@ -238,6 +241,7 @@ BEGIN
             lp.id,
             lp.lote,
             lp.stock,
+            lp.estado,
             lp.fecha_vencimiento,
             json_build_object(
                     'id', p.id,
@@ -301,11 +305,11 @@ SELECT
             'id', u.id,
             'username', u.username
     ) AS usuario,
-    c.created_at
+    c.fecha
 FROM compra c
          LEFT JOIN usuario u ON c.usuario_id = u.id
          LEFT JOIN proveedor p ON c.proveedor_id = p.id
-ORDER BY c.created_at DESC;
+ORDER BY c.fecha DESC;
 
 -- Vista: view_lotes_con_productos
 CREATE OR REPLACE VIEW view_lotes_con_productos AS
@@ -313,13 +317,18 @@ SELECT
     lp.id,
     lp.lote,
     lp.stock,
+    lp.estado,
     lp.fecha_vencimiento,
     json_build_object(
             'id', p.id,
-            'nombreComercial', p.nombre_comercial
+            'nombreComercial', p.nombre_comercial,
+            'formaFarmaceutica', ff.nombre,
+            'laboratorio', l.nombre
     ) AS producto
 FROM lote_producto lp
          LEFT JOIN producto p ON p.id = lp.producto_id
+         INNER JOIN forma_farmaceutica ff on ff.id = p.forma_farmaceutica_id
+         INNER JOIN laboratorio l on l.id = p.laboratorio_id
 ORDER BY lp.fecha_vencimiento, p.nombre_comercial;
 
 -- Vista: view_compras_detalle
@@ -353,7 +362,7 @@ SELECT
     c.comentario,
     c.estado,
     c.total,
-    c.created_at,
+    c.fecha,
     c.deleted_at,
     -- Proveedor como JSON
     jsonb_build_object(
@@ -409,11 +418,11 @@ GROUP BY c.id, c.comentario, c.estado, c.total, p.id, u.id
 ORDER BY c.id DESC;
 
 -- Vista: view_venta_info
-
 CREATE OR REPLACE VIEW view_venta_info AS
 SELECT v.id,
        v.estado,
        v.codigo,
+       v.total,
        v.fecha,
        V.deleted_at,
        -- Usuario como JSON
@@ -426,7 +435,7 @@ SELECT v.id,
        jsonb_build_object(
                'id', c.id,
                'razonSocial', c.razon_social,
-               'ciNit', c.nit_ci,
+               'nitCi', c.nit_ci,
                'complemento', c.complemento
        ) AS cliente
 FROM venta v
@@ -443,7 +452,9 @@ SELECT dv.id,
 
        jsonb_build_object(
                'id', p.id,
-               'nombreComercial', p.nombre_comercial
+               'nombreComercial', p.nombre_comercial,
+               'formaFarmaceutica', ff.nombre,
+               'laboratorio', l.nombre
        )                         AS producto,
 
        -- Como dv solo tiene 1 lote por registro, solo un lote aquí

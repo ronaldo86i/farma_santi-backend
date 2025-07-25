@@ -18,7 +18,7 @@ func (c ClienteService) ObtenerClienteById(ctx context.Context, id *int) (*domai
 	return c.clienteRepository.ObtenerClienteById(ctx, id)
 }
 
-func (c ClienteService) RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) error {
+func (c ClienteService) RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error) {
 	return c.clienteRepository.RegistrarCliente(ctx, request)
 }
 

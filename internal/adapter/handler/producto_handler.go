@@ -159,12 +159,9 @@ func (p ProductoHandler) RegistrarProducto(c *fiber.Ctx) error {
 		log.Println("Error al leer el formulario multipart:", err)
 		return c.Status(fiber.StatusBadRequest).JSON(util.NewMessage("Error al leer el formulario multipart"))
 	}
-	// Validar las imágenes
+
 	files := form.File["images"]
-	//if len(files) == 0 {
-	//	log.Println("No se encontraron archivos con la clave 'images'")
-	//	return c.Status(fiber.StatusBadRequest).JSON(util.NewMessage("No se encontraron archivos con la clave 'images'"))
-	//}
+
 	err = p.productoService.RegistrarProducto(c.UserContext(), &productoRequest, &files)
 	if err != nil {
 		log.Print(err.Error())

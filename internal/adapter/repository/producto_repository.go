@@ -40,20 +40,31 @@ func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UU
 
 func (p ProductoRepository) HabilitarProducto(ctx context.Context, id *uuid.UUID) error {
 	// Inicio de transacción
+
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
 	query := `UPDATE producto SET estado='Activo',deleted_at=NULL WHERE id=$1`
-	_, err = tx.Exec(ctx, query, id.String())
+	ct, err := tx.Exec(ctx, query, id.String())
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("Producto no encontrado")
+	}
 	// Confirmar la transacción
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -63,16 +74,26 @@ func (p ProductoRepository) DeshabilitarProducto(ctx context.Context, id *uuid.U
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	query := `UPDATE producto SET estado='Inactivo',deleted_at=CURRENT_TIMESTAMP WHERE id=$1`
-	_, err = tx.Exec(ctx, query, id.String())
+	ct, err := tx.Exec(ctx, query, id.String())
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
+	}
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("Producto no encontrado")
 	}
 
 	// Confirmar la transacción
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -82,7 +103,12 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
-
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 	query := `INSERT INTO producto(nombre_comercial,forma_farmaceutica_id,precio_compra,precio_venta,estado,stock,stock_min,laboratorio_id) 
 				VALUES ($1,$2,0.0,$3,'Activo',0,$4,$5) RETURNING id`
 
@@ -101,7 +127,6 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 	defer func() {
 		if err != nil {
 			_ = util.File.DeleteAllFiles(route)
-			_ = tx.Rollback(ctx)
 		}
 	}()
 	err = util.File.MakeDir(route)
@@ -150,6 +175,7 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -159,8 +185,9 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			_ = tx.Rollback(ctx)
 		}
 	}()
@@ -175,7 +202,7 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 
 	// Ejecutar SQL update
 	query := `UPDATE producto SET nombre_comercial=$1,forma_farmaceutica_id=$2,precio_venta=$3,stock_min=$4,laboratorio_id=$5 WHERE id=$6`
-	_, err = tx.Exec(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.PrecioVenta, request.StockMin, request.LaboratorioId, id.String())
+	ct, err := tx.Exec(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.PrecioVenta, request.StockMin, request.LaboratorioId, id.String())
 	if err != nil {
 		log.Println(err)
 		var pgErr *pgconn.PgError
@@ -184,7 +211,9 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 		}
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("No existe el producto")
+	}
 	query = `DELETE FROM producto_categoria WHERE producto_id = $1`
 	_, err = tx.Exec(ctx, query, id)
 	if err != nil {
@@ -246,7 +275,7 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 		_ = util.File.RestoreFiles(backupFiles, route)
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 

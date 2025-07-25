@@ -23,19 +23,24 @@ func (p ProveedorRepository) HabilitarProveedor(ctx context.Context, id *int) er
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
-	_, err = tx.Exec(ctx, query, *id)
+	ct, err := tx.Exec(ctx, query, *id)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("Proveedor no encontrado")
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -49,9 +54,12 @@ func (p ProveedorRepository) DeshabilitarProveedor(ctx context.Context, id *int)
 		_ = tx.Rollback(ctx)
 	}(tx, ctx)
 
-	_, err = tx.Exec(ctx, query, *id)
+	ct, err := tx.Exec(ctx, query, *id)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
+	}
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("Proveedor no encontrado")
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -66,7 +74,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	queryCheck := `SELECT 1 FROM proveedor p WHERE p.nit = $1 LIMIT 1`
 
 	// Ejecutar la consulta
-	res, err := p.pool.Exec(ctx, queryCheck, request.NIT)
+	ct, err := p.pool.Exec(ctx, queryCheck, request.NIT)
 	if err != nil {
 		log.Println("proveedor.registrar", err)
 		// Si hay error en la consulta, retornamos un error de servicio no disponible
@@ -74,7 +82,7 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	}
 
 	// Verificar si la consulta encontró alguna fila
-	rowsAffected := res.RowsAffected()
+	rowsAffected := ct.RowsAffected()
 	if rowsAffected > 0 {
 		return datatype.NewConflictError("Ya existe el proveedor")
 	}
@@ -86,9 +94,9 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	// Aseguramos que el rollback se ejecute si algo falla
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			_ = tx.Rollback(ctx)
 		}
 	}()
@@ -97,7 +105,6 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	queryInsert := `INSERT INTO proveedor(nit, razon_social, representante, direccion, telefono, email, celular) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err = tx.Exec(ctx, queryInsert, request.NIT, request.RazonSocial, request.Representante, request.Direccion, request.Telefono, request.Email, request.Celular)
 	if err != nil {
-
 		// Si ocurre un error en la inserción, retornamos un error interno
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -105,10 +112,9 @@ func (p ProveedorRepository) RegistrarProveedor(ctx context.Context, request *do
 	// Confirmar la transacción si no hubo errores
 	err = tx.Commit(ctx)
 	if err != nil {
-		// Si ocurre un error al hacer commit, realizamos rollback
-		_ = tx.Rollback(ctx)
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -154,15 +160,15 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	// Aseguramos que el rollback se ejecute si algo falla
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			_ = tx.Rollback(ctx)
 		}
 	}()
 
 	query := `UPDATE proveedor p SET nit=$1, razon_social=$2, representante=$3, direccion=$4, telefono=$5, celular=$6, email=$7 WHERE p.id = $8`
-	_, err = tx.Exec(ctx, query, request.NIT, request.RazonSocial, request.Representante, request.Direccion, request.Telefono, request.Celular, request.Email, *id)
+	ct, err := tx.Exec(ctx, query, request.NIT, request.RazonSocial, request.Representante, request.Direccion, request.Telefono, request.Celular, request.Email, *id)
 
 	if err != nil {
 		// Revisar si el error es de tipo PgError y si la restricción es por NIT duplicado
@@ -180,13 +186,16 @@ func (p ProveedorRepository) ModificarProveedor(ctx context.Context, id *int, re
 		// Manejo de error interno
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("No existe el proveedor")
+	}
 
 	// Confirmar la transacción
 	err = tx.Commit(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 

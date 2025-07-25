@@ -22,8 +22,11 @@ func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context,
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
+	committed := false
 	defer func() {
-		_ = tx.Rollback(ctx)
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
 	}()
 
 	_, err = tx.Exec(ctx, query, request.Nombre, request.Descripcion)
@@ -39,13 +42,25 @@ func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context,
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
 func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context, id *int, request *domain.PrincipioActivoRequest) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
 	query := `UPDATE principio_activo SET nombre = $1, descripcion = $2 WHERE id = $3`
 
-	result, err := p.pool.Exec(ctx, query, request.Nombre, request.Descripcion, *id)
+	result, err := tx.Exec(ctx, query, request.Nombre, request.Descripcion, *id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -60,6 +75,10 @@ func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context,
 	if result.RowsAffected() == 0 {
 		return datatype.NewNotFoundError("No existe el principio activo")
 	}
+	if err = tx.Commit(ctx); err != nil {
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	committed = true
 	return nil
 }
 

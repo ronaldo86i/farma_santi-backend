@@ -1,10 +1,10 @@
 BEGIN;
 
--- 1. Crear extensión para UUID si no existe
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- 2. Crear esquema public
+-- 1. Crear esquema public
 CREATE SCHEMA IF NOT EXISTS public;
+
+-- 2. Crear extensión para UUID si no existe
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 3. Definir tipos ENUM
 
@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS producto (
     created_at             TIMESTAMPTZ          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at             TIMESTAMPTZ,
     laboratorio_id         INT                  NOT NULL REFERENCES laboratorio(id) ON DELETE CASCADE,
+    forma_farmaceutica_id INT NOT NULL REFERENCES forma_farmaceutica (id) ON DELETE CASCADE,
     UNIQUE(nombre_comercial, laboratorio_id)
 );
 
@@ -223,6 +224,7 @@ CREATE TABLE IF NOT EXISTS compra (
     comentario  TEXT,
     proveedor_id INT NOT NULL REFERENCES proveedor(id) ON DELETE CASCADE,
     usuario_id   INT NOT NULL REFERENCES usuario(id)   ON DELETE CASCADE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at   TIMESTAMPTZ
 );
 

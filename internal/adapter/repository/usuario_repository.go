@@ -23,7 +23,8 @@ type UsuarioRepository struct {
 func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error) {
 	passwordGenerated, err := password.Generate(8, 3, 0, false, false)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error al generar contraseña: " + err.Error())
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	hashPassword, err := util.Hash.HashearPassword(passwordGenerated)
 	if err != nil {
@@ -35,14 +36,19 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
+	committed := false
 	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx) // rollback silencioso
+		if !committed {
+			_ = tx.Rollback(ctx)
 		}
 	}()
-	_, err = tx.Exec(ctx, query, hashPassword, *usuarioId)
+	ct, err := tx.Exec(ctx, query, hashPassword, *usuarioId)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
+	}
+	if ct.RowsAffected() == 0 {
+		log.Println("Usuario no encontrado con id:", *usuarioId)
+		return nil, datatype.NewNotFoundError("Usuario no encontrado")
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -51,6 +57,8 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 	if err != nil {
 		return nil, err
 	}
+	committed = true
+
 	usuario.Password = passwordGenerated
 	return usuario, nil
 }
@@ -63,19 +71,27 @@ func (u UsuarioRepository) HabilitarUsuarioById(ctx context.Context, usuarioId *
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
+	committed := false
 	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx) // rollback silencioso
+		if !committed {
+			_ = tx.Rollback(ctx)
 		}
 	}()
 
-	_, err = tx.Exec(ctx, query, *usuarioId)
+	ct, err := tx.Exec(ctx, query, *usuarioId)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
+	if ct.RowsAffected() == 0 {
+		log.Println("Usuario no encontrado con id:", *usuarioId)
+		return datatype.NewNotFoundError("Usuario no encontrado")
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -86,18 +102,27 @@ func (u UsuarioRepository) DeshabilitarUsuarioById(ctx context.Context, usuarioI
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			_ = tx.Rollback(ctx)
 		}
 	}()
-	_, err = tx.Exec(ctx, query, *usuarioId)
+
+	ct, err := tx.Exec(ctx, query, *usuarioId)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
+	if ct.RowsAffected() == 0 {
+		log.Println("Usuario no encontrado con id:", *usuarioId)
+		return datatype.NewNotFoundError("Usuario no encontrado")
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
@@ -155,8 +180,10 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+
+	committed := false
 	defer func() {
-		if err != nil {
+		if !committed {
 			_ = tx.Rollback(ctx)
 		}
 	}()
@@ -166,8 +193,8 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 		return err
 	}
 
-	updateUsuarioQuery := `UPDATE usuario SET username = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
-	_, err = tx.Exec(ctx, updateUsuarioQuery, usuarioRequest.Username, *usuarioId)
+	query := `UPDATE usuario SET username = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
+	ct, err := tx.Exec(ctx, query, usuarioRequest.Username, *usuarioId)
 	if err != nil {
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return datatype.NewConflictError("El usuario ya está registrado")
@@ -175,8 +202,13 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	updatePersonaQuery := `UPDATE persona SET nombres = $1, apellido_paterno = $2, apellido_materno = $3, ci = $4, complemento = $5, genero = $6 WHERE id = $7`
-	_, err = tx.Exec(ctx, updatePersonaQuery,
+	if ct.RowsAffected() == 0 {
+		log.Println("Usuario no encontrado con id:", *usuarioId)
+		return datatype.NewNotFoundError("Usuario no encontrado")
+	}
+
+	query = `UPDATE persona SET nombres = $1, apellido_paterno = $2, apellido_materno = $3, ci = $4, complemento = $5, genero = $6 WHERE id = $7`
+	_, err = tx.Exec(ctx, query,
 		persona.Nombres,
 		persona.ApellidoPaterno,
 		persona.ApellidoMaterno,
@@ -193,17 +225,15 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	}
 
 	// Eliminar roles actuales
-	deleteRolesQuery := `DELETE FROM usuario_rol WHERE usuario_id = $1`
-	_, err = tx.Exec(ctx, deleteRolesQuery, *usuarioId)
+	query = `DELETE FROM usuario_rol WHERE usuario_id = $1`
+	_, err = tx.Exec(ctx, query, *usuarioId)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
 	// Insertar nuevos roles
-	insertRolesQuery := `
-	INSERT INTO usuario_rol(usuario_id, rol_id)
-	SELECT $1, unnest($2::int[])`
-	_, err = tx.Exec(ctx, insertRolesQuery, *usuarioId, pq.Array(usuarioRequest.Roles))
+	query = `INSERT INTO usuario_rol(usuario_id, rol_id) SELECT $1, unnest($2::int[])`
+	_, err = tx.Exec(ctx, query, *usuarioId, pq.Array(usuarioRequest.Roles))
 	if err != nil {
 		var pqErr *pq.Error
 		if errors.As(err, &pqErr) && pqErr.Code == "23503" {
@@ -216,7 +246,7 @@ func (u UsuarioRepository) ModificarUsuario(ctx context.Context, usuarioId *int,
 	if err = tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	committed = true
 	return nil
 }
 
@@ -252,16 +282,17 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
+	committed := false
 	defer func() {
-		if err != nil {
-			_ = tx.Rollback(ctx) // rollback silencioso
+		if !committed {
+			_ = tx.Rollback(ctx)
 		}
 	}()
 
 	// Insertar la persona en la tabla `persona`
-	queryPersona := `INSERT INTO persona(ci, complemento, nombres, apellido_paterno, apellido_materno, genero) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	query := `INSERT INTO persona(ci, complemento, nombres, apellido_paterno, apellido_materno, genero) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 	var personaID int
-	err = tx.QueryRow(ctx, queryPersona, usuarioRequest.Persona.Ci, usuarioRequest.Persona.Complemento, usuarioRequest.Persona.Nombres, usuarioRequest.Persona.ApellidoPaterno, usuarioRequest.Persona.ApellidoMaterno, usuarioRequest.Persona.Genero).Scan(&personaID)
+	err = tx.QueryRow(ctx, query, usuarioRequest.Persona.Ci, usuarioRequest.Persona.Complemento, usuarioRequest.Persona.Nombres, usuarioRequest.Persona.ApellidoPaterno, usuarioRequest.Persona.ApellidoMaterno, usuarioRequest.Persona.Genero).Scan(&personaID)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		// Verifica si el error es una violación de restricción única (código de error 23505)
@@ -273,11 +304,11 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 	}
 
 	// Insertar el usuario en la tabla `usuario`, relacionado con la persona
-	queryUsuario := `INSERT INTO usuario(username, password,persona_id) VALUES ($1, $2, $3) RETURNING id, username`
+	query = `INSERT INTO usuario(username, password,persona_id) VALUES ($1, $2, $3) RETURNING id, username`
 
 	var usuarioId uint
 	var usuarioEmail string
-	err = tx.QueryRow(ctx, queryUsuario, usuarioRequest.Username, hashPassword, personaID).Scan(&usuarioId, &usuarioEmail)
+	err = tx.QueryRow(ctx, query, usuarioRequest.Username, hashPassword, personaID).Scan(&usuarioId, &usuarioEmail)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		// Verifica si el error es una violación de restricción única (código de error 23505)
@@ -289,8 +320,8 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 	}
 
 	// Insertar el usuario en la tabla `usuario`, relacionado con la persona
-	queryRol := `INSERT INTO usuario_rol(usuario_id, rol_id) VALUES ($1, unnest($2::int[]));`
-	_, err = tx.Exec(ctx, queryRol, usuarioId, pq.Array(usuarioRequest.Roles))
+	query = `INSERT INTO usuario_rol(usuario_id, rol_id) VALUES ($1, unnest($2::int[]));`
+	_, err = tx.Exec(ctx, query, usuarioId, pq.Array(usuarioRequest.Roles))
 	if err != nil {
 		// Manejo de error de roles
 		var pqErr *pq.Error
@@ -301,11 +332,10 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 		return nil, datatype.NewInternalServerError("Error al registrar roles")
 	}
 
-	queryUsuarioDetalle := `SELECT oud.id, oud.username, oud.persona, oud.roles,oud.created_at,oud.updated_at,oud.deleted_at FROM obtener_usuario_detalle_by_id($1) oud;`
+	query = `SELECT oud.id, oud.username, oud.persona, oud.roles,oud.created_at,oud.updated_at,oud.deleted_at FROM obtener_usuario_detalle_by_id($1) oud;`
 	var usuarioDetalle domain.UsuarioDetail
-	err = tx.QueryRow(ctx, queryUsuarioDetalle, usuarioId).Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Persona, &usuarioDetalle.Roles, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt)
+	err = tx.QueryRow(ctx, query, usuarioId).Scan(&usuarioDetalle.Id, &usuarioDetalle.Username, &usuarioDetalle.Persona, &usuarioDetalle.Roles, &usuarioDetalle.CreatedAt, &usuarioDetalle.UpdatedAt, &usuarioDetalle.DeletedAt)
 	if err != nil {
-		// Tipo de error imprevisto
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	// Confirmar transacción
@@ -313,8 +343,10 @@ func (u UsuarioRepository) RegistrarUsuario(ctx context.Context, usuarioRequest 
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
+
+	committed = true
+
 	usuarioDetalle.Password = passwordGenerated
-	// Devolver los detalles del usuario creado
 	return &usuarioDetalle, nil
 }
 

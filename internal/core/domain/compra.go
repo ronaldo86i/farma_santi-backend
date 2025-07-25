@@ -20,10 +20,11 @@ type CompraRequest struct {
 
 type CompraInfo struct {
 	Id         uint            `json:"id"`
+	Codigo     string          `json:"codigo"`
 	Comentario string          `json:"comentario"`
 	Estado     string          `json:"estado"`
 	Total      float64         `json:"total"`
-	CreatedAt  time.Time       `json:"createdAt"`
+	Fecha      time.Time       `json:"fecha"`
 	Proveedor  ProveedorSimple `json:"proveedor"`
 	Usuario    UsuarioSimple   `json:"usuario"`
 }
@@ -57,7 +58,7 @@ type CompraDetail struct {
 	Comentario string                `json:"comentario"`
 	Estado     string                `json:"estado"`
 	Total      float64               `json:"total"`
-	CreatedAt  time.Time             `json:"createdAt"`
+	Fecha      time.Time             `json:"fecha"`
 	DeletedAt  *time.Time            `json:"deletedAt"`
 	Proveedor  ProveedorSimple       `json:"proveedor"`
 	Usuario    UsuarioSimple         `json:"usuario"`

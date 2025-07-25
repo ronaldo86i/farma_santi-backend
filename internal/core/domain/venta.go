@@ -22,6 +22,7 @@ type VentaInfo struct {
 	Cliente   ClienteSimple `json:"cliente"`
 	Fecha     time.Time     `json:"fecha"`
 	Estado    string        `json:"estado"`
+	Total     float64       `json:"total"`
 	DeletedAt *time.Time    `json:"deletedAt"`
 }
 
@@ -55,4 +56,7 @@ type VentaLoteProductoDAO struct {
 	Id          uint
 	Stock       uint
 	PrecioVenta float64
+}
+
+type MovimientoInfo struct {
 }

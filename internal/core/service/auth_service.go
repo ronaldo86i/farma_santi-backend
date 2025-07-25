@@ -20,6 +20,7 @@ func (a AuthService) ObtenerTokenByCredencial(ctx context.Context, credentials *
 	if err != nil {
 		return nil, err
 	}
+
 	// Comparar contraseña hashed y contraseña ingresada
 	if err := bcrypt.CompareHashAndPassword([]byte(usuario.Password), []byte(credentials.Password)); err != nil {
 		return nil, datatype.NewStatusUnauthorizedError("Usuario o contraseña incorrecta")

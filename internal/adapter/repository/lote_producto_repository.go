@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/lib/pq"
 	"log"
 	"strings"
 )
@@ -31,13 +32,42 @@ func (l LoteProductoRepository) ActualizarLotesVencidos(ctx context.Context) err
 			_ = tx.Rollback(ctx)
 		}
 	}()
-	query := `UPDATE lote_producto lp SET estado = 'Vencido' WHERE CURRENT_TIMESTAMP >= fecha_vencimiento AND estado != 'Vencido'`
-	_, err = tx.Exec(ctx, query)
+
+	// Actualizar lotes vencidos y retornar producto_id
+	query := `UPDATE lote_producto SET estado = 'Vencido' WHERE CURRENT_TIMESTAMP >= fecha_vencimiento AND estado != 'Vencido' RETURNING producto_id`
+	rows, err := tx.Query(ctx, query)
 	if err != nil {
 		log.Println("Error al actualizar lotes vencidos:", err)
 		return datatype.NewInternalServerError("Error al actualizar lotes vencidos")
 	}
-	// Confirmamos la transacción
+	defer rows.Close()
+
+	// Obtener los producto_id únicos afectados
+	productosAfectados := map[string]bool{}
+	for rows.Next() {
+		var productoId string
+		if err := rows.Scan(&productoId); err != nil {
+			log.Println("Error al escanear producto_id:", err)
+			return datatype.NewInternalServerError("Error al procesar lotes vencidos")
+		}
+		productosAfectados[productoId] = true
+	}
+
+	// Convertir a slice
+	var ids []string
+	for id := range productosAfectados {
+		ids = append(ids, id)
+	}
+
+	// Actualizar solo productos afectados
+	query = `UPDATE producto SET stock = (SELECT COALESCE(SUM(lp.stock), 0) FROM lote_producto lp WHERE lp.producto_id = producto.id AND lp.estado = 'Activo') WHERE id = ANY($1)`
+	_, err = tx.Exec(ctx, query, pq.Array(ids))
+	if err != nil {
+		log.Println("Error al actualizar stock de productos afectados:", err)
+		return datatype.NewInternalServerError("Error al actualizar stock de productos afectados")
+	}
+
+	// Commit transacción
 	err = tx.Commit(ctx)
 	if err != nil {
 		log.Println("Error al confirmar transacción de lotes vencidos:", err)
@@ -82,10 +112,12 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
-
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	query = `UPDATE lote_producto SET lote=$1,fecha_vencimiento=$2,producto_id=$3 WHERE id = $4`
 	fechaVencimiento := request.FechaVencimiento.Format("2006-01-02")
@@ -118,11 +150,12 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
 func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
-	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM view_lotes_con_productos lp`
+	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.estado,lp.producto FROM view_lotes_con_productos lp`
 	rows, err := l.pool.Query(ctx, query)
 	if err != nil {
 		return nil, datatype.NewInternalServerError("Error al obtener la lista")
@@ -131,7 +164,7 @@ func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]do
 	var list = make([]domain.LoteProductoInfo, 0)
 	for rows.Next() {
 		var item domain.LoteProductoInfo
-		err := rows.Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
+		err := rows.Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Estado, &item.Producto)
 		if err != nil {
 			log.Println(err.Error())
 			return nil, datatype.NewInternalServerErrorGeneric()
@@ -153,9 +186,12 @@ func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, reque
 	if err != nil {
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		_ = tx.Rollback(ctx)
-	}(tx, ctx)
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
 
 	query := `INSERT INTO lote_producto(lote, fecha_vencimiento, producto_id) VALUES ($1, $2, $3)`
 	fechaVencimiento := request.FechaVencimiento.Format("2006-01-02")
@@ -189,14 +225,15 @@ func (l LoteProductoRepository) RegistrarLoteProducto(ctx context.Context, reque
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
+	committed = true
 	return nil
 }
 
 func (l LoteProductoRepository) ObtenerLoteProductoById(ctx context.Context, id *int) (*domain.LoteProductoDetail, error) {
-	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.producto FROM obtener_lote_by_id($1) lp`
+	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.estado,lp.producto FROM obtener_lote_by_id($1) lp`
 
 	var item domain.LoteProductoDetail
-	err := l.pool.QueryRow(ctx, query, *id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Producto)
+	err := l.pool.QueryRow(ctx, query, *id).Scan(&item.Id, &item.Lote, &item.Stock, &item.FechaVencimiento, &item.Estado, &item.Producto)
 	if err != nil {
 		// Si no hay registros
 		if errors.Is(err, sql.ErrNoRows) {
