@@ -7,14 +7,14 @@ import (
 )
 
 type PrincipioActivoRepository interface {
-	RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) error
+	RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) (*int, error)
 	ModificarPrincipioActivo(ctx context.Context, id *int, request *domain.PrincipioActivoRequest) error
 	ListarPrincipioActivo(ctx context.Context) (*[]domain.PrincipioActivoInfo, error)
 	ObtenerPrincipioActivoById(ctx context.Context, id *int) (*domain.PrincipioActivoDetail, error)
 }
 
 type PrincipioActivoService interface {
-	RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) error
+	RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) (*int, error)
 	ModificarPrincipioActivo(ctx context.Context, id *int, request *domain.PrincipioActivoRequest) error
 	ListarPrincipioActivo(ctx context.Context) (*[]domain.PrincipioActivoInfo, error)
 	ObtenerPrincipioActivoById(ctx context.Context, id *int) (*domain.PrincipioActivoDetail, error)

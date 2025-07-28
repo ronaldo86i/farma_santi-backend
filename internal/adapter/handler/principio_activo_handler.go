@@ -24,7 +24,7 @@ func (p PrincipioActivoHandler) RegistrarPrincipioActivo(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
 
-	err = p.principioActivoService.RegistrarPrincipioActivo(c.Context(), &req)
+	id, err := p.principioActivoService.RegistrarPrincipioActivo(c.Context(), &req)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -34,7 +34,7 @@ func (p PrincipioActivoHandler) RegistrarPrincipioActivo(c *fiber.Ctx) error {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(util.NewMessage("Principio activo registrado correctamente"))
+	return c.Status(fiber.StatusCreated).JSON(util.NewMessageData(&domain.PrincipioActivoId{Id: *id}, "Principio activo registrado correctamente"))
 }
 
 func (p PrincipioActivoHandler) ModificarPrincipioActivo(c *fiber.Ctx) error {

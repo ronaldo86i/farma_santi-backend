@@ -18,7 +18,7 @@ type ClienteRepository struct {
 }
 
 func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error) {
-	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado FROM cliente c`
+	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.created_at FROM cliente c`
 
 	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
@@ -29,7 +29,7 @@ func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.
 	list := make([]domain.ClienteInfo, 0)
 	for rows.Next() {
 		var item domain.ClienteInfo
-		err = rows.Scan(&item.Id, &item.NitCi, &item.Complemento, &item.Tipo, &item.RazonSocial, &item.Estado)
+		err = rows.Scan(&item.Id, &item.NitCi, &item.Complemento, &item.Tipo, &item.RazonSocial, &item.Estado, &item.CreatedAt)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
@@ -43,7 +43,7 @@ func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.
 }
 
 func (c ClienteRepository) ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error) {
-	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.email,c.telefono,c.created_at,c.created_at FROM cliente c WHERE c.id=$1`
+	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.email,c.telefono,c.created_at,c.deleted_at FROM cliente c WHERE c.id=$1`
 	var cliente domain.ClienteDetail
 	err := c.pool.QueryRow(ctx, query, *id).Scan(&cliente.Id, &cliente.NitCi, &cliente.Complemento, &cliente.Tipo, &cliente.RazonSocial, &cliente.Estado, &cliente.Email, &cliente.Telefono, &cliente.CreatedAt, &cliente.DeletedAt)
 	if err != nil {

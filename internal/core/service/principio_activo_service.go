@@ -11,7 +11,7 @@ type PrincipioActivoService struct {
 	principioActivoRepository port.PrincipioActivoRepository
 }
 
-func (p PrincipioActivoService) RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) error {
+func (p PrincipioActivoService) RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) (*int, error) {
 	request.Nombre = strings.TrimSpace(request.Nombre)
 	request.Nombre = strings.ToUpper(request.Nombre)
 	return p.principioActivoRepository.RegistrarPrincipioActivo(ctx, request)

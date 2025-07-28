@@ -21,3 +21,7 @@ type PrincipioActivoDetail struct {
 	Nombre      string `json:"nombre"`
 	Descripcion string `json:"descripcion"`
 }
+
+type PrincipioActivoId struct {
+	Id int `json:"id"`
+}

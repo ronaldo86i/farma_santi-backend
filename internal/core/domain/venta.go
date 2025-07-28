@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"github.com/jackc/pgx/v5/pgtype"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type DetalleVentaRequest struct {
 
 type VentaInfo struct {
 	Id        uint          `json:"id"`
-	Codigo    string        `json:"codigo"`
+	Codigo    pgtype.Text   `json:"codigo"`
 	Usuario   UsuarioSimple `json:"usuario"`
 	Cliente   ClienteSimple `json:"cliente"`
 	Fecha     time.Time     `json:"fecha"`
@@ -56,7 +57,4 @@ type VentaLoteProductoDAO struct {
 	Id          uint
 	Stock       uint
 	PrecioVenta float64
-}
-
-type MovimientoInfo struct {
 }

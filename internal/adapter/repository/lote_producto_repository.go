@@ -154,7 +154,7 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 	return nil
 }
 
-func (l LoteProductoRepository) ListarLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
+func (l LoteProductoRepository) ObtenerListaLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
 	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.estado,lp.producto FROM view_lotes_con_productos lp`
 	rows, err := l.pool.Query(ctx, query)
 	if err != nil {

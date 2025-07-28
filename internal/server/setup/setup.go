@@ -14,7 +14,7 @@ import (
 type Repository struct {
 	Categoria       port.CategoriaRepository
 	Cliente         port.ClienteRepository
-	Compras         port.CompraRepository
+	Compra          port.CompraRepository
 	Laboratorio     port.LaboratorioRepository
 	LoteProducto    port.LoteProductoRepository
 	PrincipioActivo port.PrincipioActivoRepository
@@ -23,13 +23,14 @@ type Repository struct {
 	Rol             port.RolRepository
 	Usuario         port.UsuarioRepository
 	Venta           port.VentaRepository
+	Movimiento      port.MovimientoRepository
 }
 
 type Service struct {
 	Auth            port.AuthService
 	Categoria       port.CategoriaService
 	Cliente         port.ClienteService
-	Compras         port.CompraService
+	Compra          port.CompraService
 	Laboratorio     port.LaboratorioService
 	LoteProducto    port.LoteProductoService
 	PrincipioActivo port.PrincipioActivoService
@@ -38,6 +39,8 @@ type Service struct {
 	Rol             port.RolService
 	Usuario         port.UsuarioService
 	Venta           port.VentaService
+	Movimiento      port.MovimientoService
+	Reporte         port.ReporteService
 }
 
 type Handler struct {
@@ -53,6 +56,8 @@ type Handler struct {
 	Rol             port.RolHandler
 	Usuario         port.UsuarioHandler
 	Venta           port.VentaHandler
+	Movimiento      port.MovimientoHandler
+	Reporte         port.ReporteHandler
 }
 
 type Dependencies struct {
@@ -110,9 +115,10 @@ func Init() {
 		repositories.Producto = repository.NewProductoRepository(pool)
 		repositories.LoteProducto = repository.NewLoteProductoRepository(pool)
 		repositories.PrincipioActivo = repository.NewPrincipioActivoRepository(pool)
-		repositories.Compras = repository.NewCompraRepository(pool)
+		repositories.Compra = repository.NewCompraRepository(pool)
 		repositories.Cliente = repository.NewClienteRepository(pool)
 		repositories.Venta = repository.NewVentaRepository(pool)
+		repositories.Movimiento = repository.NewMovimientoRepository(pool)
 
 		// Services
 		services.Auth = service.NewAuthService(repositories.Usuario)
@@ -124,9 +130,11 @@ func Init() {
 		services.Producto = service.NewProductoService(repositories.Producto)
 		services.LoteProducto = service.NewLoteProductoService(repositories.LoteProducto)
 		services.PrincipioActivo = service.NewPrincipioActivoService(repositories.PrincipioActivo)
-		services.Compras = service.NewCompraService(repositories.Compras)
+		services.Compra = service.NewCompraService(repositories.Compra)
 		services.Cliente = service.NewClienteService(repositories.Cliente)
 		services.Venta = service.NewVentaService(repositories.Venta)
+		services.Movimiento = service.NewMovimientoService(repositories.Movimiento)
+		services.Reporte = service.NewReporteService(repositories.Usuario, repositories.Cliente, repositories.LoteProducto, repositories.Producto, repositories.Compra, repositories.Venta)
 
 		// Handlers
 		handlers.Auth = handler.NewAuthHandler(services.Auth)
@@ -138,10 +146,11 @@ func Init() {
 		handlers.Producto = handler.NewProductoHandler(services.Producto)
 		handlers.LoteProducto = handler.NewLoteProductoHandler(services.LoteProducto)
 		handlers.PrincipioActivo = handler.NewPrincipioActivoHandler(services.PrincipioActivo)
-		handlers.Compra = handler.NewCompraHandler(services.Compras)
+		handlers.Compra = handler.NewCompraHandler(services.Compra)
 		handlers.Cliente = handler.NewClienteHandler(services.Cliente)
 		handlers.Venta = handler.NewVentaHandler(services.Venta)
-
+		handlers.Movimiento = handler.NewMovimientoHandler(services.Movimiento)
+		handlers.Reporte = handler.NewReporteHandler(services.Reporte)
 		instance = d
 	})
 }

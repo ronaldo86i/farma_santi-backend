@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"time"
 )
 
@@ -20,7 +21,7 @@ type CompraRequest struct {
 
 type CompraInfo struct {
 	Id         uint            `json:"id"`
-	Codigo     string          `json:"codigo"`
+	Codigo     pgtype.Text     `json:"codigo"`
 	Comentario string          `json:"comentario"`
 	Estado     string          `json:"estado"`
 	Total      float64         `json:"total"`
@@ -55,6 +56,7 @@ type DetalleCompraDetail struct {
 }
 type CompraDetail struct {
 	Id         uint                  `json:"id"`
+	Codigo     pgtype.Text           `json:"codigo"`
 	Comentario string                `json:"comentario"`
 	Estado     string                `json:"estado"`
 	Total      float64               `json:"total"`

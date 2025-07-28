@@ -58,8 +58,8 @@ func (l LoteProductoHandler) ModificarLoteProducto(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(util.NewMessage("Lote de producto modificado correctamente"))
 }
 
-func (l LoteProductoHandler) ListarLotesProductos(c *fiber.Ctx) error {
-	list, err := l.loteProductoService.ListarLotesProductos(c.UserContext())
+func (l LoteProductoHandler) ObtenerListaLotesProductos(c *fiber.Ctx) error {
+	list, err := l.loteProductoService.ObtenerListaLotesProductos(c.UserContext())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

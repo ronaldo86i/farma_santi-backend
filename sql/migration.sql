@@ -35,15 +35,6 @@ DO $$
     END
 $$;
 
--- Estado de lote
-DO $$
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lote_estado') THEN
-            CREATE TYPE lote_estado AS ENUM ('Activo', 'Vencido', 'Retirado');
-        END IF;
-    END
-$$;
-
 -- Estado de venta
 DO $$
     BEGIN
@@ -52,6 +43,18 @@ DO $$
         END IF;
     END
 $$;
+
+-- Estado de lote
+DO
+$$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lote_estado') THEN
+            CREATE TYPE lote_estado AS ENUM ('Activo', 'Vencido', 'Retirado');
+        END IF;
+    END
+$$;
+
+
 
 -- 4. Tablas de usuarios y roles
 

@@ -289,10 +289,11 @@ SELECT
 FROM usuario u
          LEFT JOIN persona p ON p.id = u.persona_id;
 
--- Vista: view_listar_compras
-CREATE OR REPLACE VIEW view_listar_compras AS
+-- Vista: view_compras
+CREATE OR REPLACE VIEW view_compras AS
 SELECT
     c.id,
+    c.codigo,
     c.comentario,
     c.estado,
     c.total,
@@ -336,6 +337,7 @@ CREATE OR REPLACE VIEW view_compras_detalle AS
 SELECT
     c.id,
     c.estado,
+    c.codigo,
     c.total,
     c.comentario,
     c.proveedor_id,
@@ -359,6 +361,7 @@ GROUP BY c.id, c.estado, c.total, c.comentario, c.proveedor_id, c.usuario_id;
 CREATE OR REPLACE VIEW view_compra_con_detalles AS
 SELECT
     c.id,
+    c.codigo,
     c.comentario,
     c.estado,
     c.total,
@@ -480,6 +483,41 @@ GROUP BY dv.id, dv.venta_id, dv.cantidad, dv.precio,
          p.id, p.nombre_comercial,
          ff.nombre, l.nombre, lp.id;
 
+
+CREATE OR REPLACE VIEW view_compra_info AS
+SELECT c.id,
+       c.estado,
+       c.codigo,
+       c.total,
+       c.fecha,
+       c.deleted_at,
+       -- Usuario como JSON
+       jsonb_build_object(
+               'id', u.id,
+               'username', u.username,
+               'estado', u.estado
+       ) AS usuario
+FROM compra c
+         INNER JOIN public.usuario u on u.id = c.usuario_id;
+
+CREATE OR REPLACE VIEW view_movimiento_info AS
+SELECT c.id,
+       c.codigo,
+       c.estado::text,
+       c.fecha,
+       c.usuario,
+       'COMPRA' AS tipo
+FROM view_compra_info c
+
+UNION ALL
+
+SELECT v.id,
+       v.codigo,
+       v.estado::text,
+       v.fecha,
+       v.usuario,
+       'VENTA' AS tipo
+FROM view_venta_info v;
 
 -- =============================================================================
 -- FUNCIONES TRIGGER

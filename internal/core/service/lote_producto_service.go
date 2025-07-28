@@ -23,8 +23,8 @@ func (l LoteProductoService) ModificarLoteProducto(ctx context.Context, id *int,
 	return l.loteProductoRepository.ModificarLoteProducto(ctx, id, request)
 }
 
-func (l LoteProductoService) ListarLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
-	return l.loteProductoRepository.ListarLotesProductos(ctx)
+func (l LoteProductoService) ObtenerListaLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
+	return l.loteProductoRepository.ObtenerListaLotesProductos(ctx)
 }
 
 func (l LoteProductoService) RegistrarLoteProducto(ctx context.Context, request *domain.LoteProductoRequest) error {

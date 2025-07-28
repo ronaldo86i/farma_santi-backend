@@ -57,6 +57,8 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Compras := v1.Group("/compras")
 	v1Clientes := v1.Group("/clientes")
 	v1Ventas := v1.Group("/ventas")
+	v1Movimientos := v1.Group("/movimientos")
+	v1Reportes := v1.Group("/reportes")
 	// path: /api/v1/usuarios/me
 	v1UsuariosMe.Get("", limited(20, 5*time.Minute, 5*time.Second), s.handlers.Usuario.ObtenerUsuarioActual)
 
@@ -127,7 +129,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	//path: /api/v1/productos
 	v1Productos.Get("/unidades-medida", limite, s.handlers.Producto.ListarUnidadesMedida)
 	v1Productos.Get("/formas-farmaceuticas", limite, s.handlers.Producto.ListarFormasFarmaceuticas)
-	v1Productos.Get("", limite, s.handlers.Producto.ListarProductos)
+	v1Productos.Get("", limite, s.handlers.Producto.ObtenerListaProductos)
 	v1Productos.Get("/:productoId", limite, s.handlers.Producto.ObtenerProductoById)
 	v1Productos.Post("", limite, s.handlers.Producto.RegistrarProducto)
 	v1Productos.Put("/:productoId", limite, s.handlers.Producto.ModificarProducto)
@@ -135,7 +137,7 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Productos.Patch("/estado/deshabilitar/:productoId", limite, s.handlers.Producto.DeshabilitarProducto)
 
 	//path: /api/v1/lotes-productos
-	v1LotesProductos.Get("", limite, s.handlers.LoteProducto.ListarLotesProductos)
+	v1LotesProductos.Get("", limite, s.handlers.LoteProducto.ObtenerListaLotesProductos)
 	v1LotesProductos.Get("/byProducto/:productoId", limite, s.handlers.LoteProducto.ListarLotesProductosByProductoId)
 	v1LotesProductos.Get("/:loteProductoId", limite, s.handlers.LoteProducto.ObtenerLoteProductoById)
 	v1LotesProductos.Post("", limite, s.handlers.LoteProducto.RegistrarLoteProducto)
@@ -169,4 +171,16 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1Ventas.Post("/registrar", limite, s.handlers.Venta.RegistrarVenta)
 	v1Ventas.Patch("/anular/:ventaId", limite, s.handlers.Venta.AnularVentaById)
 	v1Ventas.Post("/facturar/:ventaId", limite, s.handlers.Venta.FacturarVentaById)
+
+	//path: /api/v1/movimientos
+	v1Movimientos.Get("", limite, s.handlers.Movimiento.ObtenerListaMovimientos)
+
+	//path: /api/v1/reportes
+	v1Reportes.Use(middleware.HostnameMiddleware, middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
+	v1Reportes.Get("/usuarios", s.handlers.Reporte.ReporteUsuariosPDF)
+	v1Reportes.Get("/clientes", s.handlers.Reporte.ReporteClientesPDF)
+	v1Reportes.Get("/lotes-productos", s.handlers.Reporte.ReporteLotesProductosPDF)
+	v1Reportes.Get("/compras", s.handlers.Reporte.ReporteComprasPDF)
+	v1Reportes.Get("/ventas", s.handlers.Reporte.ReporteVentasPDF)
+	v1Reportes.Get("/inventario", s.handlers.Reporte.ReporteInventarioPDF)
 }

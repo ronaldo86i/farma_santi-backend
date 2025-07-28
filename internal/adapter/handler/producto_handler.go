@@ -133,8 +133,8 @@ func (p ProductoHandler) ListarFormasFarmaceuticas(c *fiber.Ctx) error {
 	return c.JSON(&list)
 }
 
-func (p ProductoHandler) ListarProductos(c *fiber.Ctx) error {
-	list, err := p.productoService.ListarProductos(c.UserContext())
+func (p ProductoHandler) ObtenerListaProductos(c *fiber.Ctx) error {
+	list, err := p.productoService.ObtenerListaProductos(c.UserContext())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

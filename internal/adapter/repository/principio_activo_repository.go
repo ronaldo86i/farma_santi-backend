@@ -15,12 +15,12 @@ type PrincipioActivoRepository struct {
 	pool *pgxpool.Pool
 }
 
-func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) error {
-	query := `INSERT INTO principio_activo(nombre, descripcion) VALUES ($1, $2)`
+func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context, request *domain.PrincipioActivoRequest) (*int, error) {
+	query := `INSERT INTO principio_activo(nombre, descripcion) VALUES ($1, $2) RETURNING id`
 
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
-		return datatype.NewStatusServiceUnavailableErrorGeneric()
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 	committed := false
 	defer func() {
@@ -28,22 +28,23 @@ func (p PrincipioActivoRepository) RegistrarPrincipioActivo(ctx context.Context,
 			_ = tx.Rollback(ctx)
 		}
 	}()
-
-	_, err = tx.Exec(ctx, query, request.Nombre, request.Descripcion)
+	var id int
+	err = tx.QueryRow(ctx, query, request.Nombre, request.Descripcion).Scan(&id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			// Código 23505 = unique_violation
-			return datatype.NewConflictError("El nombre del principio activo ya existe")
+			return nil, datatype.NewConflictError("El nombre del principio activo ya existe")
 		}
-		return err
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	if err = tx.Commit(ctx); err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
+
 	committed = true
-	return nil
+	return &id, nil
 }
 
 func (p PrincipioActivoRepository) ModificarPrincipioActivo(ctx context.Context, id *int, request *domain.PrincipioActivoRequest) error {

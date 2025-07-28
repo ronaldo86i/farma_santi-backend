@@ -327,7 +327,7 @@ func (p ProductoRepository) ListarFormasFarmaceuticas(ctx context.Context) (*[]d
 	return &list, nil
 }
 
-func (p ProductoRepository) ListarProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
+func (p ProductoRepository) ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
 	fullHostname := ctx.Value("fullHostname").(string)
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
 

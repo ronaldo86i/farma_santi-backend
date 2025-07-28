@@ -12,6 +12,7 @@ type ClienteInfo struct {
 	Tipo        string      `json:"tipo"`
 	Estado      string      `json:"estado"`
 	RazonSocial string      `json:"razonSocial"`
+	CreatedAt   time.Time   `json:"createdAt"`
 }
 
 type ClienteDetail struct {
@@ -37,10 +38,10 @@ type ClienteRequest struct {
 }
 
 type ClienteSimple struct {
-	Id          uint    `json:"id"`
-	NitCi       *uint   `json:"nitCi"`
-	Complemento *string `json:"complemento"`
-	RazonSocial string  `json:"razonSocial"`
+	Id          uint        `json:"id"`
+	NitCi       *uint       `json:"nitCi"`
+	Complemento pgtype.Text `json:"complemento"`
+	RazonSocial string      `json:"razonSocial"`
 }
 
 type ClienteId struct {

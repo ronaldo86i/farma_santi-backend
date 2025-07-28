@@ -7,6 +7,7 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,9 +20,9 @@ type CompraRepository struct {
 }
 
 func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error) {
-	query := `SELECT v.id,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.fecha,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
+	query := `SELECT v.id,v.codigo,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.fecha,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
 	var compra domain.CompraDetail
-	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.Fecha, &compra.DeletedAt, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Codigo, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.Fecha, &compra.DeletedAt, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al obtener compra:", err.Error())
 		if errors.Is(err, sql.ErrNoRows) {
@@ -46,14 +47,29 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
 			_ = tx.Rollback(ctx)
 		}
 	}()
+
+	// Generar código de venta de forma más eficiente
+	var nextNum int64
+	err = tx.QueryRow(ctx, `
+        SELECT COALESCE(
+            (SELECT MAX(CAST(SUBSTRING(codigo FROM 6) AS INTEGER)) + 1 FROM compra WHERE codigo ~ '^COMP-[0-9]+$'),
+            1
+        )
+    `).Scan(&nextNum)
+	if err != nil {
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	codigo := fmt.Sprintf("COMP-%09d", nextNum)
+
 	var total float64
 	for _, detalle := range request.Detalles {
 		total += detalle.Precio * float64(detalle.Cantidad)
 	}
-	query := `INSERT INTO compra(usuario_id,proveedor_id,comentario,total) VALUES($1,$2,$3,$4) RETURNING id`
+
+	query := `INSERT INTO compra(usuario_id,proveedor_id,comentario,total,codigo) VALUES($1,$2,$3,$4,$5) RETURNING id`
 
 	var compraId uint
-	err = tx.QueryRow(ctx, query, request.UsuarioId, request.ProveedorId, request.Comentario, total).Scan(&compraId)
+	err = tx.QueryRow(ctx, query, request.UsuarioId, request.ProveedorId, request.Comentario, total, codigo).Scan(&compraId)
 	if err != nil {
 		log.Println("Ha ocurrido un error al insertar la compra:", err.Error())
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -331,7 +347,7 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 }
 
 func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error) {
-	query := `SELECT c.id, c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.fecha FROM view_listar_compras c`
+	query := `SELECT c.id,c.codigo,c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.fecha FROM view_compras c`
 	rows, err := c.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -342,7 +358,7 @@ func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.Co
 
 	for rows.Next() {
 		var item domain.CompraInfo
-		err = rows.Scan(&item.Id, &item.Comentario, &item.Estado, &item.Total, &item.Proveedor, &item.Usuario, &item.Fecha)
+		err = rows.Scan(&item.Id, &item.Codigo, &item.Comentario, &item.Estado, &item.Total, &item.Proveedor, &item.Usuario, &item.Fecha)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}

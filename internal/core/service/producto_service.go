@@ -60,8 +60,8 @@ func (p ProductoService) ListarUnidadesMedida(ctx context.Context) (*[]domain.Un
 	return p.productoRepository.ListarUnidadesMedida(ctx)
 }
 
-func (p ProductoService) ListarProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
-	return p.productoRepository.ListarProductos(ctx)
+func (p ProductoService) ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
+	return p.productoRepository.ObtenerListaProductos(ctx)
 }
 
 func NewProductoService(productoRepository port.ProductoRepository) *ProductoService {
