@@ -66,3 +66,7 @@ type CompraDetail struct {
 	Usuario    UsuarioSimple         `json:"usuario"`
 	Detalles   []DetalleCompraDetail `json:"detalles"`
 }
+
+type CompraId struct {
+	Id uint `json:"id"`
+}

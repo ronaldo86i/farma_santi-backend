@@ -1,5 +1,6 @@
 *.out
-
+*.exe
+*.tar
 # Ignorar directorios y archivos comunes
 .git
 .gitignore

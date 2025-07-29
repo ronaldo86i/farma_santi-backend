@@ -38,7 +38,7 @@ func (c2 CompraHandler) RegistrarOrdenCompra(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
 	}
-	err = c2.compraService.RegistrarOrdenCompra(c.UserContext(), &request)
+	compraId, err := c2.compraService.RegistrarOrdenCompra(c.UserContext(), &request)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -47,7 +47,7 @@ func (c2 CompraHandler) RegistrarOrdenCompra(c *fiber.Ctx) error {
 		}
 		return c.Status(http.StatusInternalServerError).JSON(util.NewMessage(err.Error()))
 	}
-	return c.JSON(util.NewMessage("Orden de compra registrada correctamente"))
+	return c.JSON(util.NewMessageData(domain.CompraId{Id: *compraId}, "Orden de compra registrada correctamente"))
 }
 
 func (c2 CompraHandler) ModificarOrdenCompra(c *fiber.Ctx) error {

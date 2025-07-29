@@ -16,11 +16,11 @@ func (c CompraService) ObtenerCompraById(ctx context.Context, id *int) (*domain.
 	return c.compraRepository.ObtenerCompraById(ctx, id)
 }
 
-func (c CompraService) RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) error {
+func (c CompraService) RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) (*uint, error) {
 	val := ctx.Value(util.ContextUserIdKey)
 	userIdFloat, ok := val.(int)
 	if !ok {
-		return datatype.NewBadRequestError("ID de usuario inválido o no encontrado en el contexto")
+		return nil, datatype.NewBadRequestError("ID de usuario inválido o no encontrado en el contexto")
 	}
 
 	request.UsuarioId = uint(userIdFloat)

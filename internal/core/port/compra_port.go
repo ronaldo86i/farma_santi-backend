@@ -7,7 +7,7 @@ import (
 )
 
 type CompraRepository interface {
-	RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) error
+	RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) (*uint, error)
 	ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error
 	AnularOrdenCompra(ctx context.Context, id *int) error
 	RegistrarCompra(ctx context.Context, id *int) error
@@ -16,7 +16,7 @@ type CompraRepository interface {
 }
 
 type CompraService interface {
-	RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) error
+	RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) (*uint, error)
 	ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error
 	AnularOrdenCompra(ctx context.Context, id *int) error
 	RegistrarCompra(ctx context.Context, id *int) error

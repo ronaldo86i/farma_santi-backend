@@ -73,7 +73,8 @@ func (s *Server) endPointsAPI(api fiber.Router) {
 	v1LotesProductos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1PrincipiosActivos.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
 	v1Compras.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "GERENTE", "AUXILIAR DE ALMACEN"))
-	v1Ventas.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN"))
+	v1Ventas.Use(middleware.VerifyUserAdminMiddleware, middleware.VerifyRolesMiddleware("ADMIN", "FARMACEUTICO"))
+
 	// path: /api/v1/auth
 	v1Auth.Post("/login", limited(5, 5*time.Minute, 5*time.Minute), s.handlers.Auth.Login)
 	v1Auth.Get("/logout", limited(30, 5*time.Minute, 5*time.Second), s.handlers.Auth.Logout)

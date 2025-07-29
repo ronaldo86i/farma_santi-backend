@@ -34,11 +34,11 @@ func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*doma
 	return &compra, nil
 }
 
-func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) error {
+func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *domain.CompraRequest) (*uint, error) {
 	tx, err := c.pool.Begin(ctx)
 	if err != nil {
 		log.Printf("Error al iniciar transacción: %v", err)
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
 	committed := false
@@ -57,7 +57,7 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
         )
     `).Scan(&nextNum)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	codigo := fmt.Sprintf("COMP-%09d", nextNum)
 
@@ -72,7 +72,7 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
 	err = tx.QueryRow(ctx, query, request.UsuarioId, request.ProveedorId, request.Comentario, total, codigo).Scan(&compraId)
 	if err != nil {
 		log.Println("Ha ocurrido un error al insertar la compra:", err.Error())
-		return datatype.NewStatusServiceUnavailableErrorGeneric()
+		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	for _, detalle := range request.Detalles {
@@ -80,17 +80,17 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
 		_, err := tx.Exec(ctx, query, detalle.Cantidad, detalle.Precio, compraId, detalle.LoteProductoId)
 		if err != nil {
 			log.Println("Ha ocurrido un error al insertar detalles de la compra:", err.Error())
-			return datatype.NewStatusServiceUnavailableErrorGeneric()
+			return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 		}
 	}
 
 	// Confirmar transacción
 	err = tx.Commit(ctx)
 	if err != nil {
-		return datatype.NewInternalServerErrorGeneric()
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	committed = true
-	return nil
+	return &compraId, nil
 }
 
 func (c CompraRepository) ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error {
