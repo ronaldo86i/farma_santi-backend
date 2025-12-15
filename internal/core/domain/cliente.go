@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"github.com/jackc/pgx/v5/pgtype"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ClienteInfo struct {
@@ -40,8 +41,10 @@ type ClienteRequest struct {
 type ClienteSimple struct {
 	Id          uint        `json:"id"`
 	NitCi       *uint       `json:"nitCi"`
+	Tipo        string      `json:"tipo"`
 	Complemento pgtype.Text `json:"complemento"`
 	RazonSocial string      `json:"razonSocial"`
+	Email       string      `json:"email,omitempty"`
 }
 
 type ClienteId struct {

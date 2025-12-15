@@ -10,8 +10,12 @@ type MovimientoService struct {
 	movimientoRepository port.MovimientoRepository
 }
 
-func (m MovimientoService) ObtenerListaMovimientos(ctx context.Context) (*[]domain.MovimientoInfo, error) {
-	return m.movimientoRepository.ObtenerListaMovimientos(ctx)
+func (m MovimientoService) ObtenerMovimientosKardex(ctx context.Context, filtros map[string]string) (*[]domain.MovimientoKardex, error) {
+	return m.movimientoRepository.ObtenerMovimientosKardex(ctx, filtros)
+}
+
+func (m MovimientoService) ObtenerListaMovimientos(ctx context.Context, filtros map[string]string) (*[]domain.MovimientoInfo, error) {
+	return m.movimientoRepository.ObtenerListaMovimientos(ctx, filtros)
 }
 
 func NewMovimientoService(movimientoRepository port.MovimientoRepository) *MovimientoService {

@@ -1,18 +1,22 @@
 package server
 
 import (
+	"farma-santi_backend/internal/core/service"
 	"farma-santi_backend/internal/core/util"
 	"farma-santi_backend/internal/server/setup"
 	"fmt"
+
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"golang.org/x/exp/slog"
+
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"golang.org/x/exp/slog"
 )
 
 var httpPort = "8080"
@@ -44,7 +48,7 @@ func (s *Server) startServer() {
 	})
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173,http://localhost:4173,http://127.0.0.1:5173",
+		AllowOrigins: os.Getenv("ALLOW_ORIGINS"),
 		AllowHeaders: strings.Join([]string{
 			fiber.HeaderOrigin,
 			fiber.HeaderContentType,
@@ -57,9 +61,10 @@ func (s *Server) startServer() {
 	}))
 
 	app.Use(logger.New(logger.Config{
-		Format: "${ip} - ${method} ${path} - ${status} - ${latency}\n",
+		Format: "${ip} - ${method} ${protocol}://${host}${path} - ${status} - ${latency}\n",
 	}))
 
+	service.GetFirebaseClient()
 	s.initEndPoints(app)
 
 	serverAddr := fmt.Sprintf(":%s", httpPort)

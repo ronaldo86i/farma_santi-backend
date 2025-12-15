@@ -8,19 +8,35 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"fmt"
+	"log"
+	"strings"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
 )
 
 type ClienteRepository struct {
 	pool *pgxpool.Pool
 }
 
-func (c ClienteRepository) ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error) {
-	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.created_at FROM cliente c`
+func (c ClienteRepository) ObtenerListaClientes(ctx context.Context, filtros map[string]string) (*[]domain.ClienteInfo, error) {
+	var filters []string
+	var args []interface{}
+	i := 1
 
-	rows, err := c.pool.Query(ctx, query)
+	// Sí hay estado en filtros
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("c.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+
+	query := `SELECT c.id,c.nit_ci,c.complemento,c.tipo,c.razon_social,c.estado,c.created_at FROM cliente c`
+	// Si hay filtros, agregarlos al query
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	rows, err := c.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

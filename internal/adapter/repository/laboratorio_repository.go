@@ -7,11 +7,12 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"log"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
-	"time"
 )
 
 type LaboratorioRepository struct {
@@ -65,26 +66,26 @@ func (l LaboratorioRepository) ListarLaboratorios(ctx context.Context) (*[]domai
 }
 
 func (l LaboratorioRepository) ObtenerLaboratorioById(ctx context.Context, id *int) (*domain.LaboratorioDetail, error) {
-	query := "SELECT l.id, l.nombre, l.direccion, l.estado ,l.created_at, l.deleted_at FROM laboratorio l WHERE l.id = $1 ORDER BY l.id"
+	query := "SELECT l.id, l.nombre, l.direccion, l.estado ,l.created_at, l.deleted_at, l.telefono, l.celular, l.email, l.representante FROM laboratorio l WHERE l.id = $1 ORDER BY l.id"
 	row := l.pool.QueryRow(ctx, query, id)
 
-	var laboratorio domain.LaboratorioDetail
-	if err := row.Scan(&laboratorio.Id, &laboratorio.Nombre, &laboratorio.Direccion, &laboratorio.Estado, &laboratorio.CreatedAt, &laboratorio.DeletedAt); err != nil {
+	var lab domain.LaboratorioDetail
+	if err := row.Scan(&lab.Id, &lab.Nombre, &lab.Direccion, &lab.Estado, &lab.CreatedAt, &lab.DeletedAt, &lab.Telefono, &lab.Celular, &lab.Email, &lab.Representante); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, datatype.NewNotFoundError("Laboratorio no encontrado")
 		}
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 
-	return &laboratorio, nil
+	return &lab, nil
 }
 
-func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laboratorioRequest *domain.LaboratorioRequest) error {
+func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, request *domain.LaboratorioRequest) error {
 	// Verifica si el laboratorio existe y si fue eliminado o no
 	queryCheck := `SELECT deleted_at FROM laboratorio WHERE nombre = $1 LIMIT 1`
 
 	var deletedAt *time.Time
-	err := l.pool.QueryRow(ctx, queryCheck, laboratorioRequest.Nombre).Scan(&deletedAt)
+	err := l.pool.QueryRow(ctx, queryCheck, request.Nombre).Scan(&deletedAt)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		// Error al ejecutar la consulta
@@ -97,7 +98,7 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 	}
 
 	// Insertar el nuevo laboratorio
-	queryInsert := `INSERT INTO laboratorio(nombre, direccion, deleted_at) VALUES ($1, $2, NULL)`
+	queryInsert := `INSERT INTO laboratorio(nombre, direccion, deleted_at,telefono,email,celular,representante) VALUES ($1, $2, NULL, $3,$4,$5,$6)`
 	tx, err := l.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
@@ -109,7 +110,7 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 		}
 	}()
 
-	_, err = tx.Exec(ctx, queryInsert, laboratorioRequest.Nombre, laboratorioRequest.Direccion)
+	_, err = tx.Exec(ctx, queryInsert, request.Nombre, request.Direccion, request.Telefono, request.Email, request.Celular, request.Representante)
 	if err != nil {
 		log.Println("Error al insertar Laboratorio:", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -122,8 +123,8 @@ func (l LaboratorioRepository) RegistrarLaboratorio(ctx context.Context, laborat
 	return nil
 }
 
-func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int, laboratorioRequest *domain.LaboratorioRequest) error {
-	query := `UPDATE laboratorio l SET nombre=$1,direccion=$2 WHERE l.id = $3`
+func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int, request *domain.LaboratorioRequest) error {
+	query := `UPDATE laboratorio l SET nombre=$1,direccion=$2,email=$3,celular=$4,telefono=$5,representante=$6 WHERE l.id = $7`
 	tx, err := l.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
@@ -135,7 +136,7 @@ func (l LaboratorioRepository) ModificarLaboratorio(ctx context.Context, id *int
 		}
 	}()
 
-	_, err = tx.Exec(ctx, query, laboratorioRequest.Nombre, laboratorioRequest.Direccion, *id)
+	_, err = tx.Exec(ctx, query, request.Nombre, request.Direccion, request.Email, request.Celular, request.Telefono, request.Representante, *id)
 	if err != nil {
 		// Revisar si el error es de tipo PgError y si la restricción es por NIT duplicado
 		var pgErr *pgconn.PgError

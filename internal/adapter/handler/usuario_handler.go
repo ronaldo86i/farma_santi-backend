@@ -6,9 +6,10 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type UsuarioHandler struct {
@@ -21,7 +22,12 @@ func (u UsuarioHandler) RestablecerPassword(c *fiber.Ctx) error {
 	if err != nil || usuarioId <= 0 {
 		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("El 'id' del usuario debe ser un número válido mayor a 0"))
 	}
-	usuario, err := u.usuarioService.RestablecerPassword(ctx, &usuarioId)
+
+	var usuarioRequest domain.UsuarioResetPassword
+	if err := c.BodyParser(&usuarioRequest); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(util.NewMessage("Petición inválida: datos incompletos o incorrectos"))
+	}
+	usuario, err := u.usuarioService.RestablecerPassword(ctx, &usuarioId, &usuarioRequest)
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
@@ -87,7 +93,7 @@ func (u UsuarioHandler) ObtenerUsuarioActual(c *fiber.Ctx) error {
 
 func (u UsuarioHandler) ListarUsuarios(c *fiber.Ctx) error {
 
-	listaUsuario, err := u.usuarioService.ListarUsuarios(c.Context())
+	listaUsuario, err := u.usuarioService.ListarUsuarios(c.Context(), c.Queries())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

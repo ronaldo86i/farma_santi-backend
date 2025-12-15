@@ -10,8 +10,8 @@ type ClienteService struct {
 	clienteRepository port.ClienteRepository
 }
 
-func (c ClienteService) ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error) {
-	return c.clienteRepository.ObtenerListaClientes(ctx)
+func (c ClienteService) ObtenerListaClientes(ctx context.Context, filtros map[string]string) (*[]domain.ClienteInfo, error) {
+	return c.clienteRepository.ObtenerListaClientes(ctx, filtros)
 }
 
 func (c ClienteService) ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error) {

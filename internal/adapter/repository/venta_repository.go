@@ -7,36 +7,202 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
 )
 
 type VentaRepository struct {
 	pool *pgxpool.Pool
 }
 
-func (v VentaRepository) FacturarVentaById(ctx context.Context, id *int) error {
-	//TODO implement me
+func (v VentaRepository) ObtenerFacturaByVentaId(ctx context.Context, ventaId *int) (*domain.Factura, error) {
+	var factura domain.Factura
+	query := `SELECT id,cuf,nit_emisor,codigo_sucursal,codigo_punto_venta,venta_id,numero_factura FROM factura WHERE venta_id = $1 LIMIT 1`
+	err := v.pool.QueryRow(ctx, query, *ventaId).
+		Scan(&factura.Id, &factura.Cuf, &factura.Nit, &factura.CodigoSucursal, &factura.CodigoPuntoVenta, &factura.VentaId, &factura.NumeroFactura)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, datatype.NewInternalServerErrorGeneric()
+	}
+	return &factura, nil
+}
+
+func (v VentaRepository) FacturarVentaById(ctx context.Context, ventaId *int, req *domain.FacturaCompraVentaResponse) error {
+	tx, err := v.pool.Begin(ctx)
+	if err != nil {
+		log.Println("Error al iniciar transacción:", err)
+		return datatype.NewStatusServiceUnavailableErrorGeneric()
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	query := `INSERT INTO factura(
+        venta_id, 
+        codigo_punto_venta, 
+        codigo_sucursal, 
+        cuf, 
+        nit_emisor, 
+        url,
+    	numero_factura
+    ) VALUES($1, $2, $3, $4, $5, $6,$7)`
+
+	// Usar Exec y desreferenciar ventaId
+	_, err = tx.Exec(ctx, query, *ventaId, req.CodigoPuntoVenta, req.CodigoSucursal, req.Cuf, req.Nit, req.Url, req.NumeroFactura)
+	if err != nil {
+		log.Println("Error al insertar factura:", err)
+		return datatype.NewInternalServerErrorGeneric()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		log.Println("Error al confirmar transacción:", err)
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	committed = true
 	return nil
 }
 
-func (v VentaRepository) ObtenerListaVentas(ctx context.Context) (*[]domain.VentaInfo, error) {
-	query := `SELECT v.id,v.codigo,v.estado,v.fecha,v.usuario,v.cliente,v.deleted_at,v.total FROM view_venta_info v ORDER BY v.codigo DESC`
-	rows, err := v.pool.Query(ctx, query)
+func (v VentaRepository) ObtenerListaVentas(ctx context.Context, filtros map[string]string) (*[]domain.VentaInfo, error) {
+	// Query base
+	query := `
+SELECT 
+    v.id,
+    v.codigo,
+    v.estado,
+    v.fecha,
+    v.usuario,
+    v.cliente,
+    v.deleted_at,
+    v.total,
+    f.url AS url_factura,
+	(
+		SELECT jsonb_agg(d)
+		FROM view_detalle_venta_producto_detail d
+		WHERE d.venta_id = v.id
+	) AS detalles_info,
+    v.tipo_pago,
+    v.descuento
+FROM view_venta_info v
+LEFT JOIN factura f ON v.id = f.venta_id
+LEFT JOIN public.cliente c on c.id = v.cliente_id
+`
+
+	var filters []string
+	var args []interface{}
+	i := 1
+
+	// Filtrar por email
+	if email := filtros["email"]; email != "" {
+		filters = append(filters, fmt.Sprintf("c.email = $%d", i))
+		args = append(args, email)
+		i++
+	}
+
+	// Filtrar por estado
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("v.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+
+	// Filtrar por fechaInicio
+	if fechaInicioStr := filtros["fechaInicio"]; fechaInicioStr != "" {
+		fechaInicio, err := time.Parse("2006-01-02", fechaInicioStr)
+		if err != nil {
+			fechaInicio, err = time.Parse(time.RFC3339, fechaInicioStr)
+			if err != nil {
+				log.Println("Error al convertir fechaInicio:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaInicio no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("v.fecha >= $%d", i))
+		args = append(args, fechaInicio)
+		i++
+	}
+
+	// Filtrar por fechaFin
+	if fechaFinStr := filtros["fechaFin"]; fechaFinStr != "" {
+		fechaFin, err := time.Parse("2006-01-02", fechaFinStr)
+		if err != nil {
+			fechaFin, err = time.Parse(time.RFC3339, fechaFinStr)
+			if err != nil {
+				log.Println("Error al convertir fechaFin:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaFin no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("v.fecha <= $%d", i))
+		args = append(args, fechaFin)
+		i++
+	}
+
+	// Agregar filtros dinámicamente
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+
+	// Orden
+	query += " ORDER BY v.codigo DESC"
+	// Aplicar LIMIT (y OFFSET si existe)
+	if limitStr := filtros["limit"]; limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit <= 0 {
+			return nil, datatype.NewBadRequestError("El valor de limit debe ser un número entero positivo")
+		}
+		query += fmt.Sprintf(" LIMIT $%d", i)
+		args = append(args, limit)
+		i++
+
+		if offsetStr := filtros["offset"]; offsetStr != "" {
+			offset, err := strconv.Atoi(offsetStr)
+			if err != nil || offset < 0 {
+				return nil, datatype.NewBadRequestError("El valor de offset debe ser un número entero no negativo")
+			}
+			query += fmt.Sprintf(" OFFSET $%d", i)
+			args = append(args, offset)
+			i++
+		}
+	}
+	// Ejecutar con args
+	rows, err := v.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
+
 	var list = make([]domain.VentaInfo, 0)
 	for rows.Next() {
 		var item domain.VentaInfo
-		err = rows.Scan(&item.Id, &item.Codigo, &item.Estado, &item.Fecha, &item.Usuario, &item.Cliente, &item.DeletedAt, &item.Total)
+		err = rows.Scan(
+			&item.Id,
+			&item.Codigo,
+			&item.Estado,
+			&item.Fecha,
+			&item.Usuario,
+			&item.Cliente,
+			&item.DeletedAt,
+			&item.Total,
+			&item.UrlFactura,
+			&item.DetallesInfo,
+			&item.TipoPago,
+			&item.Descuento,
+		)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		list = append(list, item)
 	}
+
 	return &list, nil
 }
 
@@ -52,9 +218,7 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
 	}
 
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
+		_ = tx.Rollback(ctx)
 	}()
 
 	// Generar código de venta de forma más eficiente
@@ -73,10 +237,10 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
 	// Crear la venta
 	var ventaId int64
 	err = tx.QueryRow(ctx, `
-        INSERT INTO venta (cliente_id, usuario_id, total, codigo)
-        VALUES ($1, $2, 0, $3)
+        INSERT INTO venta (cliente_id, usuario_id, total, codigo,tipo_pago,descuento)
+        VALUES ($1, $2, 0, $3, $4, $5)
         RETURNING id
-    `, request.ClienteId, request.UsuarioId, codigo).Scan(&ventaId)
+    `, request.ClienteId, request.UsuarioId, codigo, request.TipoPago, request.Descuento).Scan(&ventaId)
 	if err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
@@ -90,7 +254,9 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
 		}
 
 		// Obtener lotes disponibles ordenados por FEFO (First Expired, First Out) con bloqueo
-		rows, err := tx.Query(ctx, `
+		rows, err := tx.Query(
+			ctx,
+			`
             SELECT lp.id, lp.stock, p.precio_venta
             FROM lote_producto lp
             JOIN producto p ON p.id = lp.producto_id
@@ -99,7 +265,9 @@ func (v VentaRepository) RegistraVenta(ctx context.Context, request *domain.Vent
               AND lp.estado = 'Activo'
             ORDER BY lp.fecha_vencimiento ASC, lp.id ASC
             FOR UPDATE OF lp
-        `, item.ProductoId)
+        `,
+			item.ProductoId,
+		)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
@@ -216,14 +384,19 @@ func (v VentaRepository) ObtenerVentaById(ctx context.Context, id *int) (*domain
 			SELECT jsonb_agg(d)
 			FROM view_detalle_venta_producto_detail d
 			WHERE d.venta_id = v.id
-		) AS detalles
+		) AS detalles,
+	    f.url AS url_factura,
+	    v.tipo_pago,
+	    v.descuento
 	FROM view_venta_info v
+	LEFT JOIN factura f ON v.id = f.venta_id
 	WHERE v.id = $1
 	LIMIT 1;
 `
 
 	var venta domain.VentaDetail
-	err := v.pool.QueryRow(ctx, query, *id).Scan(&venta.Id, &venta.Codigo, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Total, &venta.Usuario, &venta.Cliente, &venta.Detalles)
+	err := v.pool.QueryRow(ctx, query, *id).
+		Scan(&venta.Id, &venta.Codigo, &venta.Fecha, &venta.Estado, &venta.DeletedAt, &venta.Total, &venta.Usuario, &venta.Cliente, &venta.Detalles, &venta.UrlFactura, &venta.TipoPago, &venta.Descuento)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datatype.NewNotFoundError("Venta no encontrada")
@@ -241,9 +414,7 @@ func (v VentaRepository) AnularVentaById(ctx context.Context, id *int) error {
 	}
 
 	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			log.Printf("Error rolling back transaction: %v", err)
-		}
+		_ = tx.Rollback(ctx)
 	}()
 
 	// Verificar que la venta existe y obtener su estado
@@ -378,10 +549,7 @@ func (v VentaRepository) AnularVentaById(ctx context.Context, id *int) error {
 	}
 
 	// Marcar el estado de la venta como 'Anulado'
-	query = `UPDATE venta 
-             SET estado = 'Anulado', 
-                 deleted_at = CURRENT_TIMESTAMP
-             WHERE id = $1 AND estado != 'Anulado'`
+	query = `UPDATE venta SET estado = 'Anulado', deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND estado != 'Anulado'`
 	result, err := tx.Exec(ctx, query, *id)
 	if err != nil {
 		log.Println("Error marcando venta como anulada:", err)

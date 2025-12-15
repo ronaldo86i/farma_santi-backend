@@ -9,13 +9,16 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
 	"fmt"
+	"log"
+	"mime/multipart"
+	"path/filepath"
+	"strconv"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
-	"log"
-	"mime/multipart"
-	"path/filepath"
 )
 
 type ProductoRepository struct {
@@ -25,10 +28,11 @@ type ProductoRepository struct {
 func (p ProductoRepository) ObtenerProductoById(ctx context.Context, id *uuid.UUID) (*domain.ProductoDetail, error) {
 	fullHostname := ctx.Value("fullHostname").(string)
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
-	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock_min,p.stock,p.fotos,p.created_at,p.deleted_at,p.estado,p.categorias,p.principio_activos,p.precio_compra FROM obtener_producto_detalle_by_id($1,$2) p;`
+	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock_min,p.stock,p.fotos,p.created_at,p.deleted_at,p.estado,p.categorias,p.principio_activos,p.precio_compra,p.presentacion,p.unidades_presentacion FROM obtener_producto_detalle_by_id($1,$2) p;`
 	var item domain.ProductoDetail
 	err := p.pool.QueryRow(ctx, query, id.String(), fullHostname).Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica,
-		&item.Laboratorio, &item.PrecioVenta, &item.StockMin, &item.Stock, &item.UrlFotos, &item.CreatedAt, &item.DeletedAt, &item.Estado, &item.Categorias, &item.PrincipiosActivos, &item.PrecioCompra)
+		&item.Laboratorio, &item.PrecioVenta, &item.StockMin, &item.Stock, &item.UrlFotos, &item.CreatedAt, &item.DeletedAt, &item.Estado, &item.Categorias,
+		&item.PrincipiosActivos, &item.PrecioCompra, &item.Presentacion, &item.UnidadesPresentacion)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, datatype.NewNotFoundError("Producto no encontrado")
@@ -109,11 +113,11 @@ func (p ProductoRepository) RegistrarProducto(ctx context.Context, request *doma
 			_ = tx.Rollback(ctx)
 		}
 	}()
-	query := `INSERT INTO producto(nombre_comercial,forma_farmaceutica_id,precio_compra,precio_venta,estado,stock,stock_min,laboratorio_id) 
-				VALUES ($1,$2,0.0,$3,'Activo',0,$4,$5) RETURNING id`
+	query := `INSERT INTO producto(nombre_comercial,forma_farmaceutica_id,precio_compra,precio_venta,estado,stock,stock_min,laboratorio_id,presentacion_id,unidades_presentacion) 
+				VALUES ($1,$2,0.0,$3,'Activo',0,$4,$5,$6,$7) RETURNING id`
 
 	var id uuid.UUID
-	err = tx.QueryRow(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.PrecioVenta, request.StockMin, request.LaboratorioId).Scan(&id)
+	err = tx.QueryRow(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.PrecioVenta, request.StockMin, request.LaboratorioId, request.PresentacionId, request.UnidadesPresentacion).Scan(&id)
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		var pgErr *pgconn.PgError
@@ -201,8 +205,8 @@ func (p ProductoRepository) ModificarProducto(ctx context.Context, id *uuid.UUID
 	}
 
 	// Ejecutar SQL update
-	query := `UPDATE producto SET nombre_comercial=$1,forma_farmaceutica_id=$2,precio_venta=$3,stock_min=$4,laboratorio_id=$5 WHERE id=$6`
-	ct, err := tx.Exec(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.PrecioVenta, request.StockMin, request.LaboratorioId, id.String())
+	query := `UPDATE producto SET nombre_comercial=$1,forma_farmaceutica_id=$2,stock_min=$3,laboratorio_id=$4,presentacion_id=$5,precio_venta=$6,unidades_presentacion=$7 WHERE id=$8`
+	ct, err := tx.Exec(ctx, query, request.NombreComercial, request.FormaFarmaceuticaId, request.StockMin, request.LaboratorioId, request.PresentacionId, request.PrecioVenta, request.UnidadesPresentacion, id.String())
 	if err != nil {
 		log.Println(err)
 		var pgErr *pgconn.PgError
@@ -327,12 +331,148 @@ func (p ProductoRepository) ListarFormasFarmaceuticas(ctx context.Context) (*[]d
 	return &list, nil
 }
 
-func (p ProductoRepository) ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
+func (p ProductoRepository) ObtenerListaProductos(ctx context.Context, filtros map[string]string) (*[]domain.ProductoInfo, error) {
 	fullHostname := ctx.Value("fullHostname").(string)
 	fullHostname = fmt.Sprintf("%s%s", fullHostname, "/uploads/productos")
 
-	query := `SELECT p.id,p.nombre_comercial,p.forma_farmaceutica,p.laboratorio,p.precio_venta,p.stock,p.stock_min,p.url_foto,p.estado,p.deleted_at,p.precio_compra FROM listar_productos_info($1) p`
-	rows, err := p.pool.Query(ctx, query, fullHostname)
+	var filters []string
+	var args []interface{}
+	args = append(args, fullHostname) // $1 siempre será la URL base
+	i := 2
+
+	if categoriasStr := filtros["categorias"]; categoriasStr != "" {
+		ids := strings.Split(categoriasStr, ",")
+		var categoriaIDs []int
+		for _, idStr := range ids {
+			idStr = strings.TrimSpace(idStr)
+			if idStr == "" {
+				continue
+			}
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				return nil, fmt.Errorf("categoría inválida: %s", idStr)
+			}
+			categoriaIDs = append(categoriaIDs, id)
+		}
+
+		if len(categoriaIDs) > 0 {
+			filters = append(filters, fmt.Sprintf("pc.categoria_id = ANY($%d)", i))
+			args = append(args, categoriaIDs)
+			i++
+		}
+	}
+	// Filtro: categoriaId (un solo id)
+	if categoriaIDStr := filtros["categoriaId"]; categoriaIDStr != "" {
+		categoriaID, err := strconv.Atoi(strings.TrimSpace(categoriaIDStr))
+		if err != nil {
+			return nil, fmt.Errorf("categoriaId inválido: %s", categoriaIDStr)
+		}
+		filters = append(filters, fmt.Sprintf("pc.categoria_id = $%d", i))
+		args = append(args, categoriaID)
+		i++
+	}
+
+	// Filtro: laboratorios (puede ser "1,2,3")
+	if laboratorioIDsStr := filtros["laboratorios"]; laboratorioIDsStr != "" {
+		ids := strings.Split(laboratorioIDsStr, ",")
+		var labIDs []int
+		for _, idStr := range ids {
+			idStr = strings.TrimSpace(idStr)
+			if idStr == "" {
+				continue
+			}
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				return nil, fmt.Errorf("laboratorio inválido: %s", idStr)
+			}
+			labIDs = append(labIDs, id)
+		}
+
+		if len(labIDs) > 0 {
+			filters = append(filters, fmt.Sprintf("p.laboratorio_id = ANY($%d)", i))
+			args = append(args, labIDs)
+			i++
+		}
+	}
+
+	// Filtro: formasFarmaceuticas (puede ser "1,2,3")
+	if formaIDsStr := filtros["formasFarmaceuticas"]; formaIDsStr != "" {
+		ids := strings.Split(formaIDsStr, ",")
+		var formaIDs []int
+		for _, idStr := range ids {
+			idStr = strings.TrimSpace(idStr)
+			if idStr == "" {
+				continue
+			}
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				return nil, fmt.Errorf("forma farmacéutica inválida: %s", idStr)
+			}
+			formaIDs = append(formaIDs, id)
+		}
+
+		if len(formaIDs) > 0 {
+			filters = append(filters, fmt.Sprintf("p.forma_farmaceutica_id = ANY($%d)", i))
+			args = append(args, formaIDs)
+			i++
+		}
+	}
+	// Filtro: estado
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("p.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+
+	// Filtro: laboratorio_id
+	if laboratorioID := filtros["laboratorioId"]; laboratorioID != "" {
+		filters = append(filters, fmt.Sprintf("p.laboratorio_id = $%d", i))
+		args = append(args, laboratorioID)
+		i++
+	}
+
+	// Filtro: forma_farmaceutica_id
+	if formaID := filtros["formaFarmaceuticaId"]; formaID != "" {
+		filters = append(filters, fmt.Sprintf("p.forma_farmaceutica_id = $%d", i))
+		args = append(args, formaID)
+		i++
+	}
+
+	// Filtro: nombre_comercial (LIKE para búsqueda parcial)
+	if nombre := filtros["search"]; nombre != "" {
+		nombre = strings.TrimSpace(nombre)
+		filters = append(filters, fmt.Sprintf("LOWER(p.nombre_comercial) LIKE LOWER($%d)", i))
+		args = append(args, "%"+nombre+"%")
+		i++
+	}
+
+	query := `
+		SELECT DISTINCT ON (p.id)
+			p.id,
+			p.nombre_comercial,
+			p.forma_farmaceutica,
+			p.laboratorio,
+			p.precio_venta,
+			p.stock,
+			p.stock_min,
+			p.url_foto,
+			p.estado,
+			p.deleted_at,
+			p.precio_compra,
+			p.presentacion,
+			p.unidades_presentacion
+		FROM listar_productos_info($1) p
+		LEFT JOIN producto_categoria pc ON pc.producto_id = p.id
+	`
+
+	// Agregar WHERE si hay filtros
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	// Ordenar por nombre_comercial
+	query += " ORDER BY p.id, p.nombre_comercial"
+
+	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {
 		log.Println(err)
 		return nil, datatype.NewInternalServerErrorGeneric()
@@ -342,7 +482,21 @@ func (p ProductoRepository) ObtenerListaProductos(ctx context.Context) (*[]domai
 	var list = make([]domain.ProductoInfo, 0)
 	for rows.Next() {
 		var item domain.ProductoInfo
-		err := rows.Scan(&item.Id, &item.NombreComercial, &item.FormaFarmaceutica, &item.Laboratorio, &item.PrecioVenta, &item.Stock, &item.StockMin, &item.UrlFoto, &item.Estado, &item.DeletedAt, &item.PrecioCompra)
+		err := rows.Scan(
+			&item.Id,
+			&item.NombreComercial,
+			&item.FormaFarmaceutica,
+			&item.Laboratorio,
+			&item.PrecioVenta,
+			&item.Stock,
+			&item.StockMin,
+			&item.UrlFoto,
+			&item.Estado,
+			&item.DeletedAt,
+			&item.PrecioCompra,
+			&item.Presentacion,
+			&item.UnidadesPresentacion,
+		)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}

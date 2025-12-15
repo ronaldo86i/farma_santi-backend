@@ -8,11 +8,12 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CompraRepository struct {
@@ -20,9 +21,9 @@ type CompraRepository struct {
 }
 
 func (c CompraRepository) ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error) {
-	query := `SELECT v.id,v.codigo,v.estado,v.total,v.comentario,v.proveedor,v.usuario,v.fecha,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
+	query := `SELECT v.id,v.codigo,v.estado,v.total,v.comentario,v.laboratorio,v.usuario,v.fecha,deleted_at,v.detalles FROM view_compra_con_detalles v WHERE id = $1`
 	var compra domain.CompraDetail
-	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Codigo, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Proveedor, &compra.Usuario, &compra.Fecha, &compra.DeletedAt, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Codigo, &compra.Estado, &compra.Total, &compra.Comentario, &compra.Laboratorio, &compra.Usuario, &compra.Fecha, &compra.DeletedAt, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al obtener compra:", err.Error())
 		if errors.Is(err, sql.ErrNoRows) {
@@ -63,21 +64,21 @@ func (c CompraRepository) RegistrarOrdenCompra(ctx context.Context, request *dom
 
 	var total float64
 	for _, detalle := range request.Detalles {
-		total += detalle.Precio * float64(detalle.Cantidad)
+		total += detalle.PrecioCompra * float64(detalle.Cantidad)
 	}
 
-	query := `INSERT INTO compra(usuario_id,proveedor_id,comentario,total,codigo) VALUES($1,$2,$3,$4,$5) RETURNING id`
+	query := `INSERT INTO compra(usuario_id,laboratorio_id,comentario,total,codigo) VALUES($1,$2,$3,$4,$5) RETURNING id`
 
 	var compraId uint
-	err = tx.QueryRow(ctx, query, request.UsuarioId, request.ProveedorId, request.Comentario, total, codigo).Scan(&compraId)
+	err = tx.QueryRow(ctx, query, request.UsuarioId, request.LaboratorioId, request.Comentario, total, codigo).Scan(&compraId)
 	if err != nil {
 		log.Println("Ha ocurrido un error al insertar la compra:", err.Error())
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
 
 	for _, detalle := range request.Detalles {
-		query = `INSERT INTO detalle_compra(cantidad, precio, compra_id, lote_producto_id) VALUES ($1, $2, $3, $4)`
-		_, err := tx.Exec(ctx, query, detalle.Cantidad, detalle.Precio, compraId, detalle.LoteProductoId)
+		query = `INSERT INTO detalle_compra(cantidad, precio_compra,precio_venta, compra_id, lote_producto_id) VALUES ($1, $2, $3, $4, $5)`
+		_, err := tx.Exec(ctx, query, detalle.Cantidad, detalle.PrecioCompra, detalle.PrecioVenta, compraId, detalle.LoteProductoId)
 		if err != nil {
 			log.Println("Ha ocurrido un error al insertar detalles de la compra:", err.Error())
 			return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -122,11 +123,11 @@ func (c CompraRepository) ModificarOrdenCompra(ctx context.Context, id *int, req
 
 	var total float64
 	for _, detalle := range request.Detalles {
-		total += detalle.Precio * float64(detalle.Cantidad)
+		total += detalle.PrecioCompra * float64(detalle.Cantidad)
 	}
 	// Consulta
-	query := `UPDATE compra c SET comentario=$1, total=$2,proveedor_id=$3,updated_at=CURRENT_TIMESTAMP WHERE id=$4`
-	_, err = tx.Exec(ctx, query, request.Comentario, total, request.ProveedorId, *id)
+	query := `UPDATE compra c SET comentario=$1, total=$2,laboratorio_id=$3,updated_at=CURRENT_TIMESTAMP WHERE id=$4`
+	_, err = tx.Exec(ctx, query, request.Comentario, total, request.LaboratorioId, *id)
 	if err != nil {
 		log.Println("Ha ocurrido un error al modificar la compra:", err.Error())
 		return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -139,8 +140,8 @@ func (c CompraRepository) ModificarOrdenCompra(ctx context.Context, id *int, req
 	}
 
 	for _, detalle := range request.Detalles {
-		query = `INSERT INTO detalle_compra(cantidad, precio, compra_id, lote_producto_id) VALUES ($1, $2, $3, $4)`
-		_, err := tx.Exec(ctx, query, detalle.Cantidad, detalle.Precio, *id, detalle.LoteProductoId)
+		query = `INSERT INTO detalle_compra(cantidad, precio_compra,precio_venta, compra_id, lote_producto_id) VALUES ($1, $2, $3, $4, $5)`
+		_, err := tx.Exec(ctx, query, detalle.Cantidad, detalle.PrecioCompra, detalle.PrecioVenta, *id, detalle.LoteProductoId)
 		if err != nil {
 			log.Println("Ha ocurrido un error al insertar detalles de la compra:", err.Error())
 			return datatype.NewStatusServiceUnavailableErrorGeneric()
@@ -202,11 +203,11 @@ func (c CompraRepository) AnularOrdenCompra(ctx context.Context, id *int) error 
 func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 	var compra domain.CompraDAO
 
-	query := `SELECT c.id, c.estado, c.total, c.comentario, c.proveedor_id, c.usuario_id, c.detalles 
+	query := `SELECT c.id, c.estado, c.total, c.comentario, c.laboratorio_id, c.usuario_id, c.detalles 
 	          FROM view_compras_detalle c 
 	          WHERE id = $1 LIMIT 1`
 
-	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.ProveedorId, &compra.UsuarioId, &compra.Detalles)
+	err := c.pool.QueryRow(ctx, query, *id).Scan(&compra.Id, &compra.Estado, &compra.Total, &compra.Comentario, &compra.LaboratorioId, &compra.UsuarioId, &compra.Detalles)
 	if err != nil {
 		log.Println("Error al consultar la compra:", err)
 		return datatype.NewInternalServerErrorGeneric()
@@ -243,8 +244,6 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		return datatype.NewInternalServerErrorGeneric()
 	}
 
-	productosId := make(map[string]bool)
-
 	for _, detalle := range compra.Detalles {
 		// Lock de lote_producto
 		lockLoteQuery := `SELECT id FROM lote_producto WHERE id = $1 FOR UPDATE`
@@ -255,85 +254,41 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 		}
 
 		// Lock de producto
-		lockProductoQuery := `SELECT precio_compra, stock FROM producto WHERE id = $1 FOR UPDATE`
-		var precioActual float64
+		lockProductoQuery := `SELECT stock FROM producto WHERE id = $1 FOR UPDATE`
 		var stockActual uint
-
-		err = tx.QueryRow(ctx, lockProductoQuery, detalle.ProductoId).Scan(&precioActual, &stockActual)
+		err = tx.QueryRow(ctx, lockProductoQuery, detalle.ProductoId).Scan(&stockActual)
 		if err != nil {
-			log.Printf("Error al obtener precio_compra y stock del producto %d: %v", detalle.ProductoId, err)
+			log.Printf("Error al obtener stock del producto %d: %v", detalle.ProductoId, err)
 			return datatype.NewInternalServerErrorGeneric()
 		}
-
-		productosId[detalle.ProductoId.String()] = true
 
 		// Actualizar stock en lote_producto
 		updateLoteQuery := `UPDATE lote_producto SET stock = stock + $1 WHERE id = $2`
 		_, err = tx.Exec(ctx, updateLoteQuery, detalle.Cantidad, detalle.LoteProductoId)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) {
-				if pgErr.Code == "23514" && pgErr.ConstraintName == "check_fecha_vencimiento" {
-					log.Printf("Violación de restricción check_fecha_vencimiento para lote %d", detalle.LoteProductoId)
-					return datatype.NewBadRequestError("No se puede actualizar el stock: el lote ya está vencido.")
-				}
-			}
 			log.Printf("Error al actualizar stock del lote %d: %v", detalle.LoteProductoId, err)
 			return datatype.NewInternalServerErrorGeneric()
 		}
 
-		// Actualizar stock en producto
-		updateProductoQuery := `UPDATE producto SET stock = stock + $1 WHERE id = $2`
-		_, err = tx.Exec(ctx, updateProductoQuery, detalle.Cantidad, detalle.ProductoId)
+		// Actualizar producto con stock y precios nuevos
+		updateProductoQuery := `UPDATE producto 
+		                        SET stock = stock + $1, 
+		                            precio_compra = $2, 
+		                            precio_venta = $3 
+		                        WHERE id = $4`
+		_, err = tx.Exec(ctx, updateProductoQuery, detalle.Cantidad, detalle.PrecioCompra, detalle.PrecioVenta, detalle.ProductoId)
 		if err != nil {
 			log.Printf("Error al actualizar producto %d: %v", detalle.ProductoId, err)
 			return datatype.NewInternalServerErrorGeneric()
 		}
 	}
 
-	// ✅ Actualizar estado antes de calcular promedio para incluir la misma compra
+	// Actualizar estado de la compra
 	updateEstadoQuery := `UPDATE compra SET estado = 'Completado', fecha = CURRENT_TIMESTAMP WHERE id = $1`
 	_, err = tx.Exec(ctx, updateEstadoQuery, *id)
 	if err != nil {
 		log.Println("Error al actualizar estado de la compra:", err)
 		return datatype.NewInternalServerErrorGeneric()
-	}
-
-	// 🔁 Calcular y actualizar precio promedio
-	for productoIdStr := range productosId {
-		productoUUID, err := uuid.Parse(productoIdStr)
-		if err != nil {
-			log.Printf("Error al parsear UUID del producto: %s", productoIdStr)
-			return datatype.NewBadRequestError("ID de producto inválido")
-		}
-
-		query = `
-			SELECT 
-				COALESCE(
-					SUM(dc.precio * dc.cantidad)::NUMERIC / NULLIF(SUM(dc.cantidad), 0),
-					0
-				) AS precio_promedio_ponderado
-			FROM detalle_compra dc
-			LEFT JOIN lote_producto lp ON dc.lote_producto_id = lp.id
-			LEFT JOIN compra c ON dc.compra_id = c.id
-			WHERE lp.producto_id = $1 AND c.estado = 'Completado'
-		`
-
-		var precioPromedio float64
-		err = tx.QueryRow(ctx, query, productoUUID).Scan(&precioPromedio)
-		if err != nil {
-			log.Printf("Error al calcular precio promedio ponderado para producto %s: %v", productoIdStr, err)
-			return datatype.NewInternalServerErrorGeneric()
-		}
-
-		log.Printf("Producto %s nuevo precio promedio: %.2f", productoIdStr, precioPromedio)
-
-		updateQuery := `UPDATE producto SET precio_compra = $1 WHERE id = $2`
-		_, err = tx.Exec(ctx, updateQuery, precioPromedio, productoUUID)
-		if err != nil {
-			log.Printf("Error al actualizar precio_compra del producto %s: %v", productoIdStr, err)
-			return datatype.NewInternalServerErrorGeneric()
-		}
 	}
 
 	err = tx.Commit(ctx)
@@ -346,27 +301,93 @@ func (c CompraRepository) RegistrarCompra(ctx context.Context, id *int) error {
 	return nil
 }
 
-func (c CompraRepository) ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error) {
-	query := `SELECT c.id,c.codigo,c.comentario, c.estado, c.total, c.proveedor, c.usuario, c.fecha FROM view_compras c`
-	rows, err := c.pool.Query(ctx, query)
+func (c CompraRepository) ObtenerListaCompras(ctx context.Context, filtros map[string]string) (*[]domain.CompraInfo, error) {
+	query := `SELECT c.id,c.codigo,c.comentario,c.estado,c.total,c.laboratorio,c.usuario,c.fecha FROM view_compras c`
+	var filters []string
+	var args []interface{}
+	i := 1
+
+	// Sí hay estado en filtros
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("c.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+	// Filtrar por fechaInicio
+	if fechaInicioStr := filtros["fechaInicio"]; fechaInicioStr != "" {
+		fechaInicio, err := time.Parse("2006-01-02", fechaInicioStr)
+		if err != nil {
+			fechaInicio, err = time.Parse(time.RFC3339, fechaInicioStr)
+			if err != nil {
+				log.Println("Error al convertir fechaInicio:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaInicio no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("c.fecha >= $%d", i))
+		args = append(args, fechaInicio)
+		i++
+	}
+
+	// Filtrar por fechaFin
+	if fechaFinStr := filtros["fechaFin"]; fechaFinStr != "" {
+		fechaFin, err := time.Parse("2006-01-02", fechaFinStr)
+		if err != nil {
+			fechaFin, err = time.Parse(time.RFC3339, fechaFinStr)
+			if err != nil {
+				log.Println("Error al convertir fechaFin:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaFin no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("c.fecha <= $%d", i))
+		args = append(args, fechaFin)
+		i++
+	}
+	// Aplicar LIMIT (y OFFSET si existe)
+	if limitStr := filtros["limit"]; limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit <= 0 {
+			return nil, datatype.NewBadRequestError("El valor de limit debe ser un número entero positivo")
+		}
+		query += fmt.Sprintf(" LIMIT $%d", i)
+		args = append(args, limit)
+		i++
+
+		if offsetStr := filtros["offset"]; offsetStr != "" {
+			offset, err := strconv.Atoi(offsetStr)
+			if err != nil || offset < 0 {
+				return nil, datatype.NewBadRequestError("El valor de offset debe ser un número entero no negativo")
+			}
+			query += fmt.Sprintf(" OFFSET $%d", i)
+			args = append(args, offset)
+			i++
+		}
+	}
+
+	// Si hay filtros, agregarlos al query
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+
+	rows, err := c.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var list = make([]domain.CompraInfo, 0)
-
 	for rows.Next() {
 		var item domain.CompraInfo
-		err = rows.Scan(&item.Id, &item.Codigo, &item.Comentario, &item.Estado, &item.Total, &item.Proveedor, &item.Usuario, &item.Fecha)
+		err = rows.Scan(&item.Id, &item.Codigo, &item.Comentario, &item.Estado, &item.Total, &item.Laboratorio, &item.Usuario, &item.Fecha)
 		if err != nil {
 			return nil, datatype.NewInternalServerErrorGeneric()
 		}
 		list = append(list, item)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, datatype.NewInternalServerErrorGeneric()
 	}
+
 	return &list, nil
 }
 

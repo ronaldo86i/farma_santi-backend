@@ -7,9 +7,10 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"log"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log"
 )
 
 type RolRepository struct {
@@ -45,7 +46,7 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 	query := `
 		UPDATE rol r 
 		SET deleted_at = CURRENT_TIMESTAMP, estado= 'Inactivo'
-		WHERE r.id = $1
+		WHERE r.id = $1 AND r.nombre != 'ADMIN'
 	`
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -58,11 +59,13 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 		}
 	}()
 
-	_, err = tx.Exec(ctx, query, *id)
+	ct, err := tx.Exec(ctx, query, *id)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
-
+	if ct.RowsAffected() == 0 {
+		return datatype.NewConflictError("Conflicto al actualizar rol")
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return datatype.NewInternalServerErrorGeneric()
 	}
@@ -71,9 +74,16 @@ func (r RolRepository) DeshabilitarRol(ctx context.Context, id *int) error {
 }
 
 func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequest) error {
-
-	query := `UPDATE rol SET nombre = $1 WHERE id = $2`
-
+	var cantidad int
+	query := `SELECT count(*) AS cantidad FROM usuario_rol WHERE rol_id=$1`
+	err := r.pool.QueryRow(ctx, query).Scan(&cantidad)
+	if err != nil {
+		log.Println("Error al consultar cantidad de usuarios:", err)
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	if cantidad > 0 {
+		return datatype.NewBadRequestError("Rol no permitido para actualizar")
+	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return datatype.NewInternalServerErrorGeneric()
@@ -84,8 +94,8 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 			_ = tx.Rollback(ctx)
 		}
 	}()
-
-	_, err = tx.Exec(ctx, query, rolRequestUpdate.Nombre, id)
+	query = `UPDATE rol SET nombre = $1 WHERE id = $2`
+	ct, err := tx.Exec(ctx, query, rolRequestUpdate.Nombre, id)
 	if err != nil {
 		// Si el nombre ya existe (violación de restricción única)
 		var pgErr *pgconn.PgError
@@ -93,6 +103,10 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 			return datatype.NewConflictError("Ya existe el rol")
 		}
 		return datatype.NewInternalServerErrorGeneric()
+	}
+
+	if ct.RowsAffected() == 0 {
+		return datatype.NewNotFoundError("No existe el rol")
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -105,18 +119,13 @@ func (r RolRepository) ModificarRol(ctx context.Context, id *int, rolRequestUpda
 func (r RolRepository) RegistrarRol(ctx context.Context, rolRequest *domain.RolRequest) error {
 	// Primero, verificamos si el rol ya existe en la base de datos
 	query := `SELECT 1 FROM rol WHERE nombre = $1 LIMIT 1;`
-	var existe bool
-	err := r.pool.QueryRow(ctx, query, rolRequest.Nombre).Scan(&existe)
 
-	if err != nil {
-		// Error al ejecutar la consulta
-		return datatype.NewInternalServerErrorGeneric()
+	ct, err := r.pool.Exec(ctx, query, rolRequest.Nombre)
+
+	if ct.RowsAffected() != 0 {
+		return datatype.NewNotFoundError("Ya existe el rol")
 	}
 
-	// Si el rol existe y no está eliminado
-	if existe == true {
-		return datatype.NewConflictError("Ya existe el rol")
-	}
 	var rolId uint
 	query = `INSERT INTO rol(nombre, deleted_at) VALUES ($1, NULL) RETURNING id;`
 	tx, err := r.pool.Begin(ctx)

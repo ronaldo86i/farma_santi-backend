@@ -7,9 +7,10 @@ import (
 	"farma-santi_backend/internal/core/util"
 	"farma-santi_backend/internal/server/setup"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // HostnameMiddleware guarda y registra el hostname completo de la petición
@@ -74,4 +75,32 @@ func VerifyRolesMiddleware(roles ...string) fiber.Handler {
 
 		return c.Status(http.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
 	}
+}
+
+func VerifyUsuarioShared(c *fiber.Ctx) error {
+	tokenString, err := util.Token.GetToken(c.Get("Authorization"))
+	if err != nil {
+		log.Println("Error al obtener token", err)
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
+	}
+
+	claimsAccessToken, err := util.Token.VerifyTokenType(tokenString, "access-token-public")
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
+	}
+
+	// Extraer userId
+	userId, ok := claimsAccessToken["userId"].(string)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(util.NewMessage("Usuario no autorizado"))
+	}
+
+	// Guardar en el contexto
+	ctx := context.WithValue(c.UserContext(), util.ContextUserIdKey, userId)
+	c.SetUserContext(ctx)
+
+	// Guardar en local
+	c.Locals(util.ContextUserIdKey, userId)
+
+	return c.Next()
 }

@@ -6,15 +6,53 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
+	"log"
+	"net/http"
+
 	"github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"log"
-	"net/http"
 )
 
 type ProductoHandler struct {
 	productoService port.ProductoService
+}
+
+func (p ProductoHandler) ObtenerProductoByIdShared(c *fiber.Ctx) error {
+	// Obtener id del producto del parámetro
+	productoIdParam := c.Params("productoId")
+	productoId, err := uuid.Parse(productoIdParam)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(util.NewMessage("Formato de id no válido"))
+	}
+	producto, err := p.productoService.ObtenerProductoById(c.UserContext(), &productoId)
+	if err != nil {
+		log.Print(err.Error())
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	return c.JSON(&producto)
+}
+
+func (p ProductoHandler) ObtenerListaProductosShared(c *fiber.Ctx) error {
+	filtros := c.Queries()
+	filtros["estado"] = "Activo"
+
+	list, err := p.productoService.ObtenerListaProductos(c.UserContext(), filtros)
+	if err != nil {
+		log.Print(err.Error())
+
+		var errorResponse *datatype.ErrorResponse
+		if errors.As(err, &errorResponse) {
+			return c.Status(errorResponse.Code).JSON(util.NewMessage(errorResponse.Message))
+		}
+		return datatype.NewInternalServerErrorGeneric()
+	}
+
+	return c.JSON(&list)
 }
 
 func (p ProductoHandler) ObtenerProductoById(c *fiber.Ctx) error {
@@ -134,7 +172,7 @@ func (p ProductoHandler) ListarFormasFarmaceuticas(c *fiber.Ctx) error {
 }
 
 func (p ProductoHandler) ObtenerListaProductos(c *fiber.Ctx) error {
-	list, err := p.productoService.ObtenerListaProductos(c.UserContext())
+	list, err := p.productoService.ObtenerListaProductos(c.UserContext(), c.Queries())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

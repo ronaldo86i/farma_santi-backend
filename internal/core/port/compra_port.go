@@ -3,6 +3,7 @@ package port
 import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -11,7 +12,7 @@ type CompraRepository interface {
 	ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error
 	AnularOrdenCompra(ctx context.Context, id *int) error
 	RegistrarCompra(ctx context.Context, id *int) error
-	ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error)
+	ObtenerListaCompras(ctx context.Context, filtros map[string]string) (*[]domain.CompraInfo, error)
 	ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error)
 }
 
@@ -20,7 +21,7 @@ type CompraService interface {
 	ModificarOrdenCompra(ctx context.Context, id *int, request *domain.CompraRequest) error
 	AnularOrdenCompra(ctx context.Context, id *int) error
 	RegistrarCompra(ctx context.Context, id *int) error
-	ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error)
+	ObtenerListaCompras(ctx context.Context, filtros map[string]string) (*[]domain.CompraInfo, error)
 	ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error)
 }
 

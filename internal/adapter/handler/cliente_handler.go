@@ -6,9 +6,10 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type ClienteHandler struct {
@@ -16,7 +17,7 @@ type ClienteHandler struct {
 }
 
 func (c2 ClienteHandler) ObtenerListaClientes(c *fiber.Ctx) error {
-	list, err := c2.clienteService.ObtenerListaClientes(c.UserContext())
+	list, err := c2.clienteService.ObtenerListaClientes(c.UserContext(), c.Queries())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

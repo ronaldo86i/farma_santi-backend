@@ -1,8 +1,35 @@
--- Transacción para crear todas las funciones y vistas
 BEGIN;
 
 -- =============================================================================
--- FUNCIONES
+-- 1. LIMPIEZA PROFUNDA (Orden corregido para evitar errores de dependencia)
+-- =============================================================================
+
+-- 1.1 Borrar Triggers PRIMERO (antes que las funciones que usan)
+DROP TRIGGER IF EXISTS trigger_fecha_vencimiento_lote ON lote_producto;
+
+-- 1.2 Ahora sí podemos borrar las Funciones
+DROP FUNCTION IF EXISTS validar_fecha_vencimiento_lote();
+DROP FUNCTION IF EXISTS obtener_usuario_detalle_by_id(INT);
+DROP FUNCTION IF EXISTS obtener_usuario_detalle_by_username(VARCHAR);
+DROP FUNCTION IF EXISTS listar_productos_info(TEXT);
+DROP FUNCTION IF EXISTS obtener_producto_detalle_by_id(UUID, TEXT);
+DROP FUNCTION IF EXISTS obtener_lote_by_id(INT);
+
+-- 1.3 Borrar Vistas (Usamos CASCADE por si unas dependen de otras)
+DROP VIEW IF EXISTS view_movimiento_info CASCADE;
+DROP VIEW IF EXISTS view_kardex CASCADE;
+DROP VIEW IF EXISTS view_detalle_venta_producto_detail CASCADE;
+DROP VIEW IF EXISTS view_venta_info CASCADE;
+DROP VIEW IF EXISTS view_compra_con_detalles CASCADE;
+DROP VIEW IF EXISTS view_compras_detalle CASCADE;
+DROP VIEW IF EXISTS view_lotes_con_productos CASCADE;
+DROP VIEW IF EXISTS view_compras CASCADE;
+DROP VIEW IF EXISTS view_lista_usuarios CASCADE;
+DROP VIEW IF EXISTS view_compra_info CASCADE;
+
+
+-- =============================================================================
+-- 2. CREACIÓN DE FUNCIONES
 -- =============================================================================
 
 -- Función: obtener_usuario_detalle_by_id
@@ -25,7 +52,7 @@ BEGIN
             u.id,
             u.username,
             u.estado,
-            jsonb_build_object(  -- Genera el objeto JSONB para "persona"
+            jsonb_build_object(
                     'id', p.id,
                     'ci', p.ci,
                     'complemento', p.complemento,
@@ -74,7 +101,7 @@ BEGIN
             u.id,
             u.username,
             u.estado,
-            jsonb_build_object(  -- Genera el objeto JSONB para "persona"
+            jsonb_build_object(
                     'id', p.id,
                     'ci', p.ci,
                     'complemento', p.complemento,
@@ -105,20 +132,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
 -- Función: listar_productos_info
 CREATE OR REPLACE FUNCTION listar_productos_info(url TEXT)
     RETURNS TABLE (
-                      id                 UUID,
-                      nombre_comercial   VARCHAR,
-                      forma_farmaceutica VARCHAR,
-                      laboratorio        VARCHAR,
-                      precio_compra NUMERIC,
-                      precio_venta       NUMERIC,
-                      stock              BIGINT,
-                      stock_min          BIGINT,
-                      estado             tipo_estado_producto,
-                      url_foto           TEXT,
-                      deleted_at         TIMESTAMPTZ
+                      id                    UUID,
+                      nombre_comercial      VARCHAR,
+                      forma_farmaceutica    VARCHAR,
+                      forma_farmaceutica_id INT,
+                      laboratorio           VARCHAR,
+                      laboratorio_id        INT,
+                      precio_compra         NUMERIC,
+                      precio_venta          NUMERIC,
+                      stock                 BIGINT,
+                      stock_min             BIGINT,
+                      estado                tipo_estado_producto,
+                      url_foto              TEXT,
+                      deleted_at            TIMESTAMPTZ,
+                      presentacion          JSONB,
+                      unidades_presentacion INT
                   )
 AS $$
 BEGIN
@@ -127,7 +159,9 @@ BEGIN
             p.id,
             p.nombre_comercial,
             ff.nombre::VARCHAR AS forma_farmaceutica,
+            p.forma_farmaceutica_id,
             l.nombre::VARCHAR AS laboratorio,
+            p.laboratorio_id,
             p.precio_compra,
             p.precio_venta,
             p.stock,
@@ -135,15 +169,25 @@ BEGIN
             p.estado,
             (TRIM(TRAILING '/' FROM url) || '/' ||
              COALESCE(p.id::TEXT || '/' || p.fotos[1], 'default.jpg'))::TEXT AS url_foto,
-            p.deleted_at
+            p.deleted_at,
+            COALESCE(
+                    jsonb_build_object(
+                            'id', p2.id,
+                            'nombre', p2.nombre
+                    ),
+                    '{}'
+            ) AS presentacion,
+            p.unidades_presentacion
         FROM producto p
+                 LEFT JOIN presentacion p2 on p.presentacion_id = p2.id
                  LEFT JOIN laboratorio l ON l.id = p.laboratorio_id
                  LEFT JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id;
 END;
 $$ LANGUAGE plpgsql;
 
+
 -- Función: obtener_producto_detalle_by_id
-CREATE OR REPLACE FUNCTION obtener_producto_detalle_by_id(arg_producto_id UUID, url TEXT)
+CREATE OR REPLACE FUNCTION obtener_producto_detalle_by_id(p_producto_id UUID, url TEXT)
     RETURNS TABLE (
                       id UUID,
                       nombre_comercial VARCHAR,
@@ -158,7 +202,9 @@ CREATE OR REPLACE FUNCTION obtener_producto_detalle_by_id(arg_producto_id UUID, 
                       laboratorio JSONB,
                       forma_farmaceutica JSONB,
                       categorias JSONB,
-                      principio_activos JSONB
+                      principio_activos     JSONB,
+                      presentacion          JSONB,
+                      unidades_presentacion INT
                   )
 AS $$
 BEGIN
@@ -171,7 +217,7 @@ BEGIN
             p.stock_min,
             p.stock,
             ARRAY(
-                    SELECT url || '/' || p.id || '/' || foto
+                    SELECT TRIM(TRAILING '/' FROM url) || '/' || p.id || '/' || foto
                     FROM unnest(p.fotos) AS foto
             ) AS fotos,
             p.estado,
@@ -212,18 +258,26 @@ BEGIN
                 FROM producto_principio_activo ppa
                          JOIN unidad_medida um2 ON um2.id = ppa.unidad_medida_id
                          JOIN principio_activo pa ON pa.id = ppa.principio_activo_id
-                WHERE ppa.producto_id = p.id
-            ) AS principio_activos
+                WHERE ppa.producto_id = p.id) AS principio_activos,
+            COALESCE(
+                    jsonb_build_object(
+                            'id', p2.id,
+                            'nombre', p2.nombre
+                    ),
+                    '{}'
+            ) AS presentacion,
+            p.unidades_presentacion
         FROM producto p
                  LEFT JOIN laboratorio l ON l.id = p.laboratorio_id
                  LEFT JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id
                  LEFT JOIN producto_categoria pc ON pc.producto_id = p.id
                  LEFT JOIN categoria c ON c.id = pc.categoria_id
-        WHERE p.id = arg_producto_id
-        GROUP BY
-            p.id, l.id, ff.id;
+                 LEFT JOIN presentacion p2 on p.presentacion_id = p2.id
+        WHERE p.id = p_producto_id
+        GROUP BY p.id, l.id, ff.id, p2.id;
 END;
 $$ LANGUAGE plpgsql;
+
 
 -- Función: obtener_lote_by_id
 CREATE OR REPLACE FUNCTION obtener_lote_by_id(p_lote_id INT)
@@ -233,7 +287,7 @@ CREATE OR REPLACE FUNCTION obtener_lote_by_id(p_lote_id INT)
                       stock BIGINT,
                       estado lote_estado,
                       fecha_vencimiento DATE,
-                      producto JSON
+                      producto JSONB
                   ) AS $$
 BEGIN
     RETURN QUERY
@@ -243,7 +297,7 @@ BEGIN
             lp.stock,
             lp.estado,
             lp.fecha_vencimiento,
-            json_build_object(
+            jsonb_build_object(
                     'id', p.id,
                     'nombreComercial', p.nombre_comercial,
                     'formaFarmaceutica', ff.nombre::TEXT,
@@ -265,7 +319,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================================================
--- VISTAS
+-- 3. VISTAS
 -- =============================================================================
 
 -- Vista: view_lista_usuarios
@@ -299,9 +353,8 @@ SELECT
     c.total,
     jsonb_build_object(
             'id', p.id,
-            'nit',p.nit,
-            'razonSocial', p.razon_social
-    ) AS proveedor,
+            'nombre', p.nombre
+    ) AS laboratorio,
     jsonb_build_object(
             'id', u.id,
             'username', u.username
@@ -309,7 +362,7 @@ SELECT
     c.fecha
 FROM compra c
          LEFT JOIN usuario u ON c.usuario_id = u.id
-         LEFT JOIN proveedor p ON c.proveedor_id = p.id
+         LEFT JOIN laboratorio p ON c.laboratorio_id = p.id
 ORDER BY c.fecha DESC;
 
 -- Vista: view_lotes_con_productos
@@ -325,12 +378,14 @@ SELECT
             'nombreComercial', p.nombre_comercial,
             'formaFarmaceutica', ff.nombre,
             'laboratorio', l.nombre
-    ) AS producto
+    ) AS producto,
+    lp.producto_id
 FROM lote_producto lp
          LEFT JOIN producto p ON p.id = lp.producto_id
-         INNER JOIN forma_farmaceutica ff on ff.id = p.forma_farmaceutica_id
-         INNER JOIN laboratorio l on l.id = p.laboratorio_id
+         INNER JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id
+         INNER JOIN laboratorio l ON l.id = p.laboratorio_id
 ORDER BY lp.fecha_vencimiento, p.nombre_comercial;
+
 
 -- Vista: view_compras_detalle
 CREATE OR REPLACE VIEW view_compras_detalle AS
@@ -340,13 +395,14 @@ SELECT
     c.codigo,
     c.total,
     c.comentario,
-    c.proveedor_id,
+    c.laboratorio_id,
     c.usuario_id,
     COALESCE(
                     jsonb_agg(DISTINCT jsonb_build_object(
                     'id', dc.id,
                     'cantidad', dc.cantidad,
-                    'precio', dc.precio,
+                    'precioCompra', dc.precio_compra,
+                    'precioVenta', dc.precio_venta,
                     'loteProductoId', dc.lote_producto_id,
                     'productoId', lp.producto_id
                                        )) FILTER (WHERE dc.id IS NOT NULL),
@@ -355,7 +411,7 @@ SELECT
 FROM compra c
          LEFT JOIN detalle_compra dc ON c.id = dc.compra_id
          LEFT JOIN lote_producto lp ON lp.id = dc.lote_producto_id
-GROUP BY c.id, c.estado, c.total, c.comentario, c.proveedor_id, c.usuario_id;
+GROUP BY c.id, c.estado, c.total, c.comentario, c.laboratorio_id, c.usuario_id;
 
 -- Vista: view_compra_con_detalles
 CREATE OR REPLACE VIEW view_compra_con_detalles AS
@@ -367,58 +423,52 @@ SELECT
     c.total,
     c.fecha,
     c.deleted_at,
-    -- Proveedor como JSON
     jsonb_build_object(
-            'id', p.id,
-            'nit', p.nit,
-            'razonSocial', p.razon_social
-    ) AS proveedor,
-
-    -- Usuario como JSON
+            'id', l.id,
+            'nombre', l.nombre
+    ) AS laboratorio,
     jsonb_build_object(
             'id', u.id,
             'username', u.username,
             'estado', u.estado
     ) AS usuario,
-
-    -- Detalles agregados
     COALESCE(
                     jsonb_agg(
                     jsonb_build_object(
                             'id', dc.id,
                             'cantidad', dc.cantidad,
-                            'precio', dc.precio,
-
-                        -- LoteProducto anidado
+                            'precioCompra', dc.precio_compra,
+                            'precioVenta', dc.precio_venta,
                             'loteProducto', jsonb_build_object(
                                     'id', lp.id,
                                     'lote', lp.lote,
                                     'fechaVencimiento', lp.fecha_vencimiento::timestamptz,
                                     'stock', lp.stock,
-
-                                -- Producto anidado
                                     'producto', jsonb_build_object(
                                             'id', p2.id,
                                             'nombreComercial', p2.nombre_comercial,
-                                            'laboratorio', l.nombre
+                                            'laboratorio', l.nombre,
+                                            'presentacion', jsonb_build_object(
+                                                    'id', p3.id,
+                                                    'nombre', p3.nombre
+                                                            ),
+                                            'unidadesPresentacion', p2.unidades_presentacion
                                                 )
                                             )
                     )
                              ) FILTER (WHERE dc.id IS NOT NULL),
                     '[]'
     ) AS detalles
-
 FROM compra c
-         LEFT JOIN proveedor p ON p.id = c.proveedor_id
          LEFT JOIN usuario u ON u.id = c.usuario_id
-
          LEFT JOIN detalle_compra dc ON dc.compra_id = c.id
          LEFT JOIN lote_producto lp ON lp.id = dc.lote_producto_id
          LEFT JOIN producto p2 ON p2.id = lp.producto_id
          LEFT JOIN laboratorio l ON l.id = p2.laboratorio_id
-
-GROUP BY c.id, c.comentario, c.estado, c.total, p.id, u.id
+         LEFT JOIN presentacion p3 ON p2.presentacion_id = p3.id
+GROUP BY c.id, c.codigo, c.comentario, c.estado, c.total, c.fecha, c.deleted_at, u.id, l.id, l.nombre
 ORDER BY c.id DESC;
+
 
 -- Vista: view_venta_info
 CREATE OR REPLACE VIEW view_venta_info AS
@@ -428,19 +478,22 @@ SELECT v.id,
        v.total,
        v.fecha,
        V.deleted_at,
-       -- Usuario como JSON
        jsonb_build_object(
                'id', u.id,
                'username', u.username,
                'estado', u.estado
        ) AS usuario,
-       -- Cliente como JSON
        jsonb_build_object(
                'id', c.id,
                'razonSocial', c.razon_social,
+               'tipo', c.tipo,
                'nitCi', c.nit_ci,
-               'complemento', c.complemento
-       ) AS cliente
+               'complemento', c.complemento,
+               'email', c.email
+       ) AS cliente,
+       v.cliente_id,
+       v.tipo_pago,
+       v.descuento
 FROM venta v
          INNER JOIN usuario u on v.usuario_id = u.id
          INNER JOIN cliente c on v.cliente_id = c.id;
@@ -457,10 +510,14 @@ SELECT dv.id,
                'id', p.id,
                'nombreComercial', p.nombre_comercial,
                'formaFarmaceutica', ff.nombre,
-               'laboratorio', l.nombre
-       )                         AS producto,
+               'laboratorio', l.nombre,
+               'presentacion', jsonb_build_object(
+                       'id', p2.id,
+                       'nombre', p2.nombre
+                               ),
+               'unidadesPresentacion', p.unidades_presentacion
+       )         AS producto,
 
-       -- Como dv solo tiene 1 lote por registro, solo un lote aquí
        jsonb_agg(
                jsonb_build_object(
                        'id', lp.id,
@@ -470,20 +527,22 @@ SELECT dv.id,
                )
        )                         AS lotes,
 
-       ff.nombre                 AS forma_farmacuentica,
+       ff.nombre AS forma_farmaceutica,
        l.nombre                  AS laboratorio
 
 FROM detalle_venta dv
-         RIGHT JOIN lote_producto lp ON lp.id = dv.lote_id
+         INNER JOIN lote_producto lp ON lp.id = dv.lote_id
          INNER JOIN producto p ON p.id = lp.producto_id
+         LEFT JOIN presentacion p2 ON p.presentacion_id = p2.id
          INNER JOIN forma_farmaceutica ff ON ff.id = p.forma_farmaceutica_id
          INNER JOIN laboratorio l ON l.id = p.laboratorio_id
 
 GROUP BY dv.id, dv.venta_id, dv.cantidad, dv.precio,
-         p.id, p.nombre_comercial,
+         p.id, p.nombre_comercial, p2.id,
          ff.nombre, l.nombre, lp.id;
 
 
+-- Vista: view_compra_info (Requerida por view_movimiento_info)
 CREATE OR REPLACE VIEW view_compra_info AS
 SELECT c.id,
        c.estado,
@@ -491,7 +550,6 @@ SELECT c.id,
        c.total,
        c.fecha,
        c.deleted_at,
-       -- Usuario como JSON
        jsonb_build_object(
                'id', u.id,
                'username', u.username,
@@ -500,13 +558,15 @@ SELECT c.id,
 FROM compra c
          INNER JOIN public.usuario u on u.id = c.usuario_id;
 
+-- Vista: view_movimiento_info
 CREATE OR REPLACE VIEW view_movimiento_info AS
 SELECT c.id,
        c.codigo,
        c.estado::text,
        c.fecha,
        c.usuario,
-       'COMPRA' AS tipo
+       'COMPRA' AS tipo,
+       c.total
 FROM view_compra_info c
 
 UNION ALL
@@ -516,18 +576,18 @@ SELECT v.id,
        v.estado::text,
        v.fecha,
        v.usuario,
-       'VENTA' AS tipo
+       'VENTA' AS tipo,
+       v.total
 FROM view_venta_info v;
 
 -- =============================================================================
--- FUNCIONES TRIGGER
+-- 4. FUNCIONES TRIGGER Y VISTA KARDEX
 -- =============================================================================
 
 -- Función: validar_fecha_vencimiento_lote
 CREATE OR REPLACE FUNCTION validar_fecha_vencimiento_lote()
     RETURNS trigger AS $$
 BEGIN
-    -- Validar solo si es INSERT o si se modificó la fecha_vencimiento
     IF (TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.fecha_vencimiento <> OLD.fecha_vencimiento))
         AND NEW.fecha_vencimiento < CURRENT_DATE THEN
         RAISE EXCEPTION 'No se puede registrar o modificar un lote con fecha vencida';
@@ -536,53 +596,74 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE VIEW view_kardex AS
+SELECT ROW_NUMBER() OVER (ORDER BY sub.fecha_movimiento, sub.id_transaccion) as id_fila,
+       sub.*
+FROM (
+         -- BLOQUE 1: COMPRAS (ENTRADAS)
+         SELECT p.id                             as producto_id,
+                l.id                             as lote_id,
+                l.lote                           as codigo_lote,
+                l.fecha_vencimiento,
+
+                'ENTRADA'                        as tipo_movimiento,
+                c.fecha                          as fecha_movimiento,
+                c.codigo                         as documento,
+                'Compra'                         as concepto,
+                u.username                       as usuario,
+
+                dc.cantidad                      as cantidad_entrada,
+                0                                as cantidad_salida,
+                dc.precio_compra                 as costo_unitario,
+                (dc.cantidad * dc.precio_compra) as total_moneda,
+
+                c.id                             as id_transaccion
+
+         FROM detalle_compra dc
+                  JOIN compra c ON dc.compra_id = c.id
+                  JOIN lote_producto l ON dc.lote_producto_id = l.id
+                  JOIN producto p ON l.producto_id = p.id
+                  JOIN usuario u ON c.usuario_id = u.id
+         WHERE c.estado = 'Completado'
+
+         UNION ALL
+
+         -- BLOQUE 2: VENTAS (SALIDAS)
+         SELECT p.id                      as producto_id,
+                l.id                      as lote_id,
+                l.lote                    as codigo_lote,
+                l.fecha_vencimiento,
+
+                'SALIDA'                  as tipo_movimiento,
+                v.fecha                   as fecha_movimiento,
+                v.codigo                  as documento,
+                'Venta'                   as concepto,
+                u.username                as usuario,
+
+                0                         as cantidad_entrada,
+                dv.cantidad               as cantidad_salida,
+                dv.precio                 as costo_unitario,
+                (dv.cantidad * dv.precio) as total_moneda,
+
+                v.id                      as id_transaccion
+
+         FROM detalle_venta dv
+                  JOIN venta v ON dv.venta_id = v.id
+                  JOIN lote_producto l ON dv.lote_id = l.id
+                  JOIN producto p ON l.producto_id = p.id
+                  JOIN usuario u ON v.usuario_id = u.id
+         WHERE v.estado = 'Realizada') sub;
+
+
 
 -- =============================================================================
--- TRIGGERS
+-- 5. TRIGGERS
 -- =============================================================================
-
--- Eliminar trigger existente si existe
-DROP TRIGGER IF EXISTS trigger_fecha_vencimiento_lote ON lote_producto;
 
 -- Crear trigger para validar fecha de vencimiento de lotes
 CREATE TRIGGER trigger_fecha_vencimiento_lote
     BEFORE INSERT OR UPDATE ON lote_producto
     FOR EACH ROW EXECUTE FUNCTION validar_fecha_vencimiento_lote();
 
--- Eliminar trigger existente si existe
--- DROP TRIGGER IF EXISTS trigger_generar_codigo_venta ON venta;
-
--- Crear trigger para generar código de venta
--- CREATE TRIGGER trigger_generar_codigo_venta
---     BEFORE INSERT ON venta
---     FOR EACH ROW
---     WHEN (NEW.codigo IS NULL)
--- EXECUTE FUNCTION generar_codigo_venta();
-
 -- Confirmar la transacción
 COMMIT;
-
--- =============================================================================
--- INFORMACIÓN DE CREACIÓN
--- =============================================================================
--- Funciones creadas:
--- 1. obtener_usuario_detalle_by_id(p_usuario_id INT)
--- 2. obtener_usuario_detalle_by_username(p_username VARCHAR)
--- 3. listar_productos_info(url TEXT)
--- 4. obtener_producto_detalle_by_id(arg_producto_id UUID, url TEXT)
--- 5. obtener_lote_by_id(p_lote_id INT)
--- 6. validar_fecha_vencimiento_lote() [TRIGGER FUNCTION]
---
--- Vistas creadas:
--- 1. view_lista_usuarios
--- 2. view_listar_compras
--- 3. view_lotes_con_productos
--- 4. view_compras_detalle
--- 5. view_compra_con_detalles
--- 6. view_venta_info
--- 7. view_detalle_venta_producto_detail
---
--- Triggers creados:
--- 1. trigger_fecha_vencimiento_lote (lote_producto)
--- 2. trigger_generar_codigo_venta (venta)
--- =============================================================================

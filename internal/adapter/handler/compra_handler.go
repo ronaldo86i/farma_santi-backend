@@ -6,9 +6,10 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/gofiber/fiber/v2"
 	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type CompraHandler struct {
@@ -107,7 +108,7 @@ func (c2 CompraHandler) RegistrarCompra(c *fiber.Ctx) error {
 }
 
 func (c2 CompraHandler) ObtenerListaCompras(c *fiber.Ctx) error {
-	lista, err := c2.compraService.ObtenerListaCompras(c.UserContext())
+	lista, err := c2.compraService.ObtenerListaCompras(c.UserContext(), c.Queries())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse

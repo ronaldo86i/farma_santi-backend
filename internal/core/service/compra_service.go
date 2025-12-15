@@ -12,6 +12,10 @@ type CompraService struct {
 	compraRepository port.CompraRepository
 }
 
+func (c CompraService) ObtenerListaCompras(ctx context.Context, filtros map[string]string) (*[]domain.CompraInfo, error) {
+	return c.compraRepository.ObtenerListaCompras(ctx, filtros)
+}
+
 func (c CompraService) ObtenerCompraById(ctx context.Context, id *int) (*domain.CompraDetail, error) {
 	return c.compraRepository.ObtenerCompraById(ctx, id)
 }
@@ -45,10 +49,6 @@ func (c CompraService) AnularOrdenCompra(ctx context.Context, id *int) error {
 
 func (c CompraService) RegistrarCompra(ctx context.Context, id *int) error {
 	return c.compraRepository.RegistrarCompra(ctx, id)
-}
-
-func (c CompraService) ObtenerListaCompras(ctx context.Context) (*[]domain.CompraInfo, error) {
-	return c.compraRepository.ObtenerListaCompras(ctx)
 }
 
 func NewCompraService(compraRepository port.CompraRepository) *CompraService {

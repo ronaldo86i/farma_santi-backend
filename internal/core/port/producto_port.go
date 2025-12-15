@@ -3,15 +3,16 @@ package port
 import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
+	"mime/multipart"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"mime/multipart"
 )
 
 type ProductoRepository interface {
 	RegistrarProducto(ctx context.Context, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error
 	ModificarProducto(ctx context.Context, id *uuid.UUID, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error
-	ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error)
+	ObtenerListaProductos(ctx context.Context, filtros map[string]string) (*[]domain.ProductoInfo, error)
 	ListarUnidadesMedida(ctx context.Context) (*[]domain.UnidadMedida, error)
 	ListarFormasFarmaceuticas(ctx context.Context) (*[]domain.FormaFarmaceutica, error)
 	HabilitarProducto(ctx context.Context, id *uuid.UUID) error
@@ -22,7 +23,7 @@ type ProductoRepository interface {
 type ProductoService interface {
 	RegistrarProducto(ctx context.Context, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error
 	ModificarProducto(ctx context.Context, id *uuid.UUID, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error
-	ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error)
+	ObtenerListaProductos(ctx context.Context, filtros map[string]string) (*[]domain.ProductoInfo, error)
 	ListarUnidadesMedida(ctx context.Context) (*[]domain.UnidadMedida, error)
 	ListarFormasFarmaceuticas(ctx context.Context) (*[]domain.FormaFarmaceutica, error)
 	HabilitarProducto(ctx context.Context, id *uuid.UUID) error
@@ -34,9 +35,11 @@ type ProductoHandler interface {
 	RegistrarProducto(c *fiber.Ctx) error
 	ModificarProducto(c *fiber.Ctx) error
 	ObtenerListaProductos(c *fiber.Ctx) error
+	ObtenerListaProductosShared(c *fiber.Ctx) error
 	ListarUnidadesMedida(c *fiber.Ctx) error
 	ListarFormasFarmaceuticas(c *fiber.Ctx) error
 	HabilitarProducto(c *fiber.Ctx) error
 	DeshabilitarProducto(c *fiber.Ctx) error
 	ObtenerProductoById(c *fiber.Ctx) error
+	ObtenerProductoByIdShared(c *fiber.Ctx) error
 }

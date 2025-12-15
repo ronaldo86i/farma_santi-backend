@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
+	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"strings"
 )
@@ -22,6 +23,13 @@ func (r RolService) DeshabilitarRol(ctx context.Context, id *int) error {
 func (r RolService) ModificarRol(ctx context.Context, id *int, rolRequestUpdate *domain.RolRequest) error {
 
 	rolRequestUpdate.Nombre = strings.ToUpper(rolRequestUpdate.Nombre)
+	oldRol, err := r.ObtenerRolById(context.Background(), id)
+	if err != nil {
+		return datatype.NewInternalServerErrorGeneric()
+	}
+	if oldRol.Nombre == "ADMIN" {
+		return datatype.NewBadRequestError("Rol no permitido para actualizar")
+	}
 	return r.rolRepository.ModificarRol(ctx, id, rolRequestUpdate)
 }
 

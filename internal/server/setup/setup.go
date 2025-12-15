@@ -6,9 +6,10 @@ import (
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/service"
 	"farma-santi_backend/internal/postgresql"
-	"github.com/joho/godotenv"
 	"log"
 	"sync"
+
+	"github.com/joho/godotenv"
 )
 
 type Repository struct {
@@ -24,6 +25,8 @@ type Repository struct {
 	Usuario         port.UsuarioRepository
 	Venta           port.VentaRepository
 	Movimiento      port.MovimientoRepository
+	Presentacion    port.PresentacionRepository
+	Stat            port.StatRepository
 }
 
 type Service struct {
@@ -41,6 +44,9 @@ type Service struct {
 	Venta           port.VentaService
 	Movimiento      port.MovimientoService
 	Reporte         port.ReporteService
+	Presentacion    port.PresentacionService
+	Stat            port.StatService
+	Backup          port.BackupService
 }
 
 type Handler struct {
@@ -58,6 +64,9 @@ type Handler struct {
 	Venta           port.VentaHandler
 	Movimiento      port.MovimientoHandler
 	Reporte         port.ReporteHandler
+	Presentacion    port.PresentacionHandler
+	Stat            port.StatHandler
+	Backup          port.BackupHandler
 }
 
 type Dependencies struct {
@@ -119,7 +128,8 @@ func Init() {
 		repositories.Cliente = repository.NewClienteRepository(pool)
 		repositories.Venta = repository.NewVentaRepository(pool)
 		repositories.Movimiento = repository.NewMovimientoRepository(pool)
-
+		repositories.Presentacion = repository.NewPresentacionRepository(pool)
+		repositories.Stat = repository.NewStatRepository(pool)
 		// Services
 		services.Auth = service.NewAuthService(repositories.Usuario)
 		services.Usuario = service.NewUsuarioService(repositories.Usuario)
@@ -134,8 +144,10 @@ func Init() {
 		services.Cliente = service.NewClienteService(repositories.Cliente)
 		services.Venta = service.NewVentaService(repositories.Venta)
 		services.Movimiento = service.NewMovimientoService(repositories.Movimiento)
-		services.Reporte = service.NewReporteService(repositories.Usuario, repositories.Cliente, repositories.LoteProducto, repositories.Producto, repositories.Compra, repositories.Venta)
-
+		services.Reporte = service.NewReporteService(repositories.Usuario, repositories.Cliente, repositories.LoteProducto, repositories.Producto, repositories.Compra, repositories.Venta, repositories.Movimiento)
+		services.Presentacion = service.NewPresentacionService(repositories.Presentacion)
+		services.Stat = service.NewStatService(repositories.Stat)
+		services.Backup = service.NewBackupService()
 		// Handlers
 		handlers.Auth = handler.NewAuthHandler(services.Auth)
 		handlers.Usuario = handler.NewUsuarioHandler(services.Usuario)
@@ -151,6 +163,10 @@ func Init() {
 		handlers.Venta = handler.NewVentaHandler(services.Venta)
 		handlers.Movimiento = handler.NewMovimientoHandler(services.Movimiento)
 		handlers.Reporte = handler.NewReporteHandler(services.Reporte)
+		handlers.Presentacion = handler.NewPresentacionHandler(services.Presentacion)
+		handlers.Stat = handler.NewStatHandler(services.Stat)
+		handlers.Backup = handler.NewBackupHandler(services.Backup)
+
 		instance = d
 	})
 }

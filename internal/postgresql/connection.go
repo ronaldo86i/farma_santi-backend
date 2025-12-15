@@ -4,6 +4,7 @@ import (
 	"context"
 	"farma-santi_backend/internal/postgresql/slog_logger"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -47,7 +48,7 @@ func Connection() error {
 
 		connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&timezone=%s",
 			user, password, host, port, dbname, sslMode, timezone)
-
+		log.Println(connStr)
 		config, err := pgxpool.ParseConfig(connStr)
 		if err != nil {
 			initErr = fmt.Errorf("error al parsear la cadena de conexión: %w", err)

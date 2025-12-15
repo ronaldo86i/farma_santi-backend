@@ -67,3 +67,11 @@ type UsuarioRequest struct {
 	Roles     []int32        `json:"roles"`
 	DeletedAt *time.Time     `json:"deletedAt"`
 }
+
+type FirebaseLogin struct {
+	Token string `json:"token"`
+}
+
+type UsuarioResetPassword struct {
+	NewPassword string `json:"newPassword"`
+}

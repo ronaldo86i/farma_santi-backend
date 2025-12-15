@@ -8,25 +8,24 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
+	"fmt"
+	"log"
+	"strings"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	"github.com/sethvargo/go-password/password"
-	"log"
 )
 
 type UsuarioRepository struct {
 	pool *pgxpool.Pool
 }
 
-func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error) {
-	passwordGenerated, err := password.Generate(8, 3, 0, false, false)
-	if err != nil {
-		log.Println("Error al generar contraseña: " + err.Error())
-		return nil, datatype.NewInternalServerErrorGeneric()
-	}
-	hashPassword, err := util.Hash.HashearPassword(passwordGenerated)
+func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *int, passwordRequest *domain.UsuarioResetPassword) (*domain.UsuarioDetail, error) {
+
+	hashPassword, err := util.Hash.HashearPassword(passwordRequest.NewPassword)
 	if err != nil {
 		return nil, datatype.NewStatusServiceUnavailableErrorGeneric()
 	}
@@ -59,7 +58,7 @@ func (u UsuarioRepository) RestablecerPassword(ctx context.Context, usuarioId *i
 	}
 	committed = true
 
-	usuario.Password = passwordGenerated
+	usuario.Password = passwordRequest.NewPassword
 	return usuario, nil
 }
 
@@ -143,11 +142,33 @@ func (u UsuarioRepository) ObtenerUsuarioDetalleByUsername(ctx context.Context, 
 	return &usuarioDetalle, nil
 }
 
-func (u UsuarioRepository) ListarUsuarios(ctx context.Context) (*[]domain.UsuarioInfo, error) {
-	query := `
-	SELECT f.id, f.username,f.estado,f.created_at, f.updated_at, f.deleted_at, f.persona FROM view_lista_usuarios f ORDER BY f.id;`
+func (u UsuarioRepository) ListarUsuarios(ctx context.Context, filtros map[string]string) (*[]domain.UsuarioInfo, error) {
+	var filters []string
+	var args []interface{}
+	i := 1
 
-	rows, err := u.pool.Query(ctx, query)
+	// Sí hay estado en filtros
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("f.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+	query := `
+SELECT 
+    f.id,
+    f.username, 
+    f.estado, 
+    f.created_at, 
+    f.updated_at, 
+    f.deleted_at, 
+    f.persona
+FROM view_lista_usuarios f
+`
+
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	rows, err := u.pool.Query(ctx, query, args...)
 	if err != nil {
 		log.Println("Error al listar usuarios", err)
 		return nil, datatype.NewInternalServerErrorGeneric()

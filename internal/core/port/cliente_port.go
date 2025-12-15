@@ -3,11 +3,12 @@ package port
 import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
+
 	"github.com/gofiber/fiber/v2"
 )
 
 type ClienteRepository interface {
-	ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error)
+	ObtenerListaClientes(ctx context.Context, filtros map[string]string) (*[]domain.ClienteInfo, error)
 	ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error)
 	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error)
 	ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error
@@ -16,7 +17,7 @@ type ClienteRepository interface {
 }
 
 type ClienteService interface {
-	ObtenerListaClientes(ctx context.Context) (*[]domain.ClienteInfo, error)
+	ObtenerListaClientes(ctx context.Context, filtros map[string]string) (*[]domain.ClienteInfo, error)
 	ObtenerClienteById(ctx context.Context, id *int) (*domain.ClienteDetail, error)
 	RegistrarCliente(ctx context.Context, request *domain.ClienteRequest) (*int, error)
 	ModificarClienteById(ctx context.Context, id *int, request *domain.ClienteRequest) error

@@ -6,9 +6,10 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/google/uuid"
 	"mime/multipart"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type ProductoService struct {
@@ -30,9 +31,6 @@ func (p ProductoService) DeshabilitarProducto(ctx context.Context, id *uuid.UUID
 func (p ProductoService) RegistrarProducto(ctx context.Context, request *domain.ProductRequest, filesHeader *[]*multipart.FileHeader) error {
 	request.NombreComercial = strings.TrimSpace(request.NombreComercial)
 	request.NombreComercial = strings.ToUpper(request.NombreComercial)
-	if len(request.PrincipiosActivos) == 0 {
-		return datatype.NewBadRequestError("Lista de principios activos vacía")
-	}
 	for _, file := range *filesHeader {
 		if !util.File.ValidarTipoArchivo(file.Filename, ".png", ".jpg", ".jpeg") {
 			return datatype.NewBadRequestError("Tipo de archivo no válido")
@@ -60,8 +58,8 @@ func (p ProductoService) ListarUnidadesMedida(ctx context.Context) (*[]domain.Un
 	return p.productoRepository.ListarUnidadesMedida(ctx)
 }
 
-func (p ProductoService) ObtenerListaProductos(ctx context.Context) (*[]domain.ProductoInfo, error) {
-	return p.productoRepository.ObtenerListaProductos(ctx)
+func (p ProductoService) ObtenerListaProductos(ctx context.Context, filtros map[string]string) (*[]domain.ProductoInfo, error) {
+	return p.productoRepository.ObtenerListaProductos(ctx, filtros)
 }
 
 func NewProductoService(productoRepository port.ProductoRepository) *ProductoService {

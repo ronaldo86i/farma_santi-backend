@@ -55,6 +55,15 @@ $$
 $$;
 
 
+-- Estado de tipoPago
+DO
+$$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_tipo_pago') THEN
+            CREATE TYPE enum_tipo_pago AS ENUM ('Efectivo','Transferencia','Tarjeta');
+        END IF;
+    END
+$$;
 
 -- 4. Tablas de usuarios y roles
 
@@ -127,26 +136,15 @@ CREATE TABLE IF NOT EXISTS categoria (
     deleted_at  TIMESTAMPTZ
 );
 
--- proveedor
-CREATE TABLE IF NOT EXISTS proveedor (
-    id            SERIAL PRIMARY KEY,
-    estado        tipo_estado    NOT NULL DEFAULT 'Activo',
-    nit           BIGINT         NOT NULL UNIQUE,
-    razon_social  VARCHAR(50)    NOT NULL,
-    representante VARCHAR(100)   NOT NULL,
-    direccion     VARCHAR(70),
-    telefono      INT,
-    email         VARCHAR(255),
-    celular       INT,
-    created_at    TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at    TIMESTAMPTZ
-);
-
 -- laboratorio
 CREATE TABLE IF NOT EXISTS laboratorio (
     id          SERIAL PRIMARY KEY,
     nombre      VARCHAR(50)  NOT NULL UNIQUE,
     direccion   VARCHAR(70),
+    representante VARCHAR(100),
+    telefono      INT,
+    email         VARCHAR(255),
+    celular       INT,
     estado      tipo_estado  NOT NULL DEFAULT 'Activo',
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -165,6 +163,12 @@ CREATE TABLE IF NOT EXISTS forma_farmaceutica (
     id      SERIAL PRIMARY KEY,
     nombre  VARCHAR(50) NOT NULL UNIQUE
 );
+-- presentacion
+CREATE TABLE IF NOT EXISTS presentacion
+(
+    id     SERIAL PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL UNIQUE
+);
 
 -- producto
 CREATE TABLE IF NOT EXISTS producto (
@@ -180,6 +184,8 @@ CREATE TABLE IF NOT EXISTS producto (
     deleted_at             TIMESTAMPTZ,
     laboratorio_id         INT                  NOT NULL REFERENCES laboratorio(id) ON DELETE CASCADE,
     forma_farmaceutica_id INT NOT NULL REFERENCES forma_farmaceutica (id) ON DELETE CASCADE,
+    presentacion_id       INT REFERENCES presentacion (id) ON DELETE CASCADE,
+    unidades_presentacion INT DEFAULT 1,
     UNIQUE(nombre_comercial, laboratorio_id)
 );
 
@@ -222,10 +228,11 @@ CREATE TABLE IF NOT EXISTS lote_producto (
 CREATE TABLE IF NOT EXISTS compra (
     id          SERIAL PRIMARY KEY,
     fecha       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    codigo         TEXT UNIQUE,
     estado      tipo_estado_compra NOT NULL DEFAULT 'Pendiente',
     total       NUMERIC(10,2) NOT NULL DEFAULT 0,
     comentario  TEXT,
-    proveedor_id INT NOT NULL REFERENCES proveedor(id) ON DELETE CASCADE,
+    laboratorio_id INT NOT NULL REFERENCES laboratorio (id) ON DELETE CASCADE,
     usuario_id   INT NOT NULL REFERENCES usuario(id)   ON DELETE CASCADE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at   TIMESTAMPTZ
@@ -237,18 +244,22 @@ CREATE TABLE IF NOT EXISTS detalle_compra (
     compra_id        INT    NOT NULL REFERENCES compra(id)         ON DELETE CASCADE,
     lote_producto_id INT    NOT NULL REFERENCES lote_producto(id) ON DELETE CASCADE,
     cantidad         INT    NOT NULL CHECK (cantidad > 0),
-    precio           NUMERIC(10,2) NOT NULL CHECK (precio >= 0)
+    precio_compra NUMERIC(10, 2) NOT NULL CHECK (precio_compra >= 0),
+    precio_venta  NUMERIC(10, 2) NOT NULL CHECK (precio_venta >= precio_compra)
 );
+
 
 -- venta
 CREATE TABLE IF NOT EXISTS venta (
-                                     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                                     id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     estado      estado_venta NOT NULL DEFAULT 'Realizada',
     codigo      TEXT UNIQUE,
     cliente_id  INT           NOT NULL REFERENCES cliente(id),
     usuario_id  INT           NOT NULL REFERENCES usuario(id),
     fecha       TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     total       NUMERIC(10,2) NOT NULL CHECK (total >= 0),
+                                     descuento NUMERIC(10, 2)          DEFAULT 0,
+                                     tipo_pago enum_tipo_pago NOT NULL DEFAULT 'Efectivo',
     deleted_at TIMESTAMPTZ
 );
 
@@ -260,6 +271,19 @@ CREATE TABLE IF NOT EXISTS detalle_venta (
     cantidad    INT    NOT NULL CHECK (cantidad > 0),
     precio      NUMERIC(10,2) NOT NULL CHECK (precio >= 0),
     total       NUMERIC(10,2) GENERATED ALWAYS AS (cantidad * precio) STORED
+);
+
+-- factura
+CREATE TABLE IF NOT EXISTS factura
+(
+    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    venta_id           INT UNIQUE NOT NULL REFERENCES venta (id) ON DELETE CASCADE,
+    codigo_punto_venta INT        NOT NULL,
+    codigo_sucursal    INT        NOT NULL,
+    numero_factura     INT,
+    cuf                TEXT       NOT NULL,
+    nit_emisor         BIGINT     NOT NULL,
+    url                TEXT       NOT NULL
 );
 
 COMMIT;

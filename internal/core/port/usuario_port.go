@@ -3,6 +3,7 @@ package port
 import (
 	"context"
 	"farma-santi_backend/internal/core/domain"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -14,8 +15,8 @@ type UsuarioRepository interface {
 	ObtenerUsuarioDetalle(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error)
 	ObtenerUsuarioDetalleByUsername(ctx context.Context, username *string) (*domain.UsuarioDetail, error)
 	RegistrarUsuario(ctx context.Context, usuarioRequest *domain.UsuarioRequest) (*domain.UsuarioDetail, error)
-	ListarUsuarios(ctx context.Context) (*[]domain.UsuarioInfo, error)
-	RestablecerPassword(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error)
+	ListarUsuarios(ctx context.Context, filtros map[string]string) (*[]domain.UsuarioInfo, error)
+	RestablecerPassword(ctx context.Context, usuarioId *int, password *domain.UsuarioResetPassword) (*domain.UsuarioDetail, error)
 }
 
 type UsuarioService interface {
@@ -25,8 +26,8 @@ type UsuarioService interface {
 	ObtenerUsuarioDetalle(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error)
 	ObtenerUsuarioDetalleByToken(ctx context.Context, token *string) (*domain.UsuarioDetail, error)
 	RegistrarUsuario(ctx context.Context, usuarioRequest *domain.UsuarioRequest) (*domain.UsuarioDetail, error)
-	ListarUsuarios(ctx context.Context) (*[]domain.UsuarioInfo, error)
-	RestablecerPassword(ctx context.Context, usuarioId *int) (*domain.UsuarioDetail, error)
+	ListarUsuarios(ctx context.Context, filtros map[string]string) (*[]domain.UsuarioInfo, error)
+	RestablecerPassword(ctx context.Context, usuarioId *int, password *domain.UsuarioResetPassword) (*domain.UsuarioDetail, error)
 }
 
 type UsuarioHandler interface {

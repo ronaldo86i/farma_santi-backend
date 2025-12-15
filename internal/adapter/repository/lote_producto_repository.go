@@ -7,13 +7,16 @@ import (
 	"farma-santi_backend/internal/core/domain"
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
+	"fmt"
+	"log"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
-	"log"
-	"strings"
 )
 
 type LoteProductoRepository struct {
@@ -154,11 +157,82 @@ func (l LoteProductoRepository) ModificarLoteProducto(ctx context.Context, id *i
 	return nil
 }
 
-func (l LoteProductoRepository) ObtenerListaLotesProductos(ctx context.Context) (*[]domain.LoteProductoInfo, error) {
+func (l LoteProductoRepository) ObtenerListaLotesProductos(ctx context.Context, filtros map[string]string) (*[]domain.LoteProductoInfo, error) {
+	var filters []string
+	var args []interface{}
+	i := 1
+	// Sí hay productosId en filtros
+	if productoId := filtros["productoId"]; productoId != "" {
+
+		filters = append(filters, fmt.Sprintf("lp.producto_id = $%d", i))
+		args = append(args, productoId)
+		i++
+	}
+	// Sí hay estado en filtros
+	if estadoStr := filtros["estado"]; estadoStr != "" {
+		filters = append(filters, fmt.Sprintf("lp.estado = $%d", i))
+		args = append(args, estadoStr)
+		i++
+	}
+	// Sí hay fechaVencimiento en filtros
+	if fechaVencimientoStr := filtros["fechaVencimiento"]; fechaVencimientoStr != "" {
+		// Intentar parsear primero en formato de fecha simple (YYYY-MM-DD)
+		fechaVencimiento, err := time.Parse("2006-01-02", fechaVencimientoStr)
+		if err != nil {
+			// Si no es solo fecha, intentar con RFC3339
+			fechaVencimiento, err = time.Parse(time.RFC3339, fechaVencimientoStr)
+			if err != nil {
+				log.Println("Error al convertir fechaVencimiento:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaVencimiento no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+
+		// Usar fecha tal cual, sin forzar UTC (depende de cómo guardes en la DB)
+		filters = append(filters, fmt.Sprintf("lp.fecha_vencimiento >= $%d", i))
+		args = append(args, fechaVencimiento)
+		i++
+	}
+
+	// ✅ Filtro por rango de fechas (fechaInicio y fechaFin)
+	var fechaInicio, fechaFin time.Time
+	var err error
+
+	if fechaInicioStr := filtros["fechaInicio"]; fechaInicioStr != "" {
+		fechaInicio, err = time.Parse("2006-01-02", fechaInicioStr)
+		if err != nil {
+			fechaInicio, err = time.Parse(time.RFC3339, fechaInicioStr)
+			if err != nil {
+				log.Println("Error al convertir fechaInicio:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaInicio no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("lp.fecha_vencimiento >= $%d", i))
+		args = append(args, fechaInicio)
+		i++
+	}
+
+	if fechaFinStr := filtros["fechaFin"]; fechaFinStr != "" {
+		fechaFin, err = time.Parse("2006-01-02", fechaFinStr)
+		if err != nil {
+			fechaFin, err = time.Parse(time.RFC3339, fechaFinStr)
+			if err != nil {
+				log.Println("Error al convertir fechaFin:", err)
+				return nil, datatype.NewBadRequestError("El valor de fechaFin no es válido, formatos esperados: YYYY-MM-DD o RFC3339")
+			}
+		}
+		filters = append(filters, fmt.Sprintf("lp.fecha_vencimiento <= $%d", i))
+		args = append(args, fechaFin)
+		i++
+	}
+
 	var query = `SELECT lp.id,lp.lote,lp.stock,lp.fecha_vencimiento,lp.estado,lp.producto FROM view_lotes_con_productos lp`
-	rows, err := l.pool.Query(ctx, query)
+	if len(filters) > 0 {
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+	rows, err := l.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, datatype.NewInternalServerError("Error al obtener la lista")
+		log.Println("Error al obtener lista de lotes:", err)
+		return nil, datatype.NewInternalServerErrorGeneric()
 	}
 	defer rows.Close()
 	var list = make([]domain.LoteProductoInfo, 0)

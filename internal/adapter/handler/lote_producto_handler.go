@@ -6,10 +6,11 @@ import (
 	"farma-santi_backend/internal/core/domain/datatype"
 	"farma-santi_backend/internal/core/port"
 	"farma-santi_backend/internal/core/util"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"log"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type LoteProductoHandler struct {
@@ -59,7 +60,7 @@ func (l LoteProductoHandler) ModificarLoteProducto(c *fiber.Ctx) error {
 }
 
 func (l LoteProductoHandler) ObtenerListaLotesProductos(c *fiber.Ctx) error {
-	list, err := l.loteProductoService.ObtenerListaLotesProductos(c.UserContext())
+	list, err := l.loteProductoService.ObtenerListaLotesProductos(c.UserContext(), c.Queries())
 	if err != nil {
 		log.Print(err.Error())
 		var errorResponse *datatype.ErrorResponse
